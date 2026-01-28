@@ -10,20 +10,16 @@
 </p>
 
 <p align="center">
-  <a href="https://paper.prismer.ai/library">📖 Paper Reading</a> •
-  <a href="https://prismer.cloud/">☁️ Context Cloud</a> •
-  <a href="docs/components.md">Components</a> •
-  <a href="docs/roadmap.md">Roadmap</a>
+  <a href="https://paper.prismer.ai/library"><strong>📖 Paper Reading</strong></a> •
+  <a href="https://prismer.cloud/"><strong>☁️ Context Cloud</strong></a>
 </p>
 
----
-
-## 🚀 Live Products
-
-| Product | URL | Description |
-|---------|-----|-------------|
-| **Paper Reading** | [paper.prismer.ai](https://paper.prismer.ai/library) | AI-native PDF reader with citation graphs |
-| **Context Cloud** | [prismer.cloud](https://prismer.cloud/) | Cloud-based context management & SDK |
+<p align="center">
+  <a href="docs/components.md">Components</a> •
+  <a href="docs/architecture.md">Architecture</a> •
+  <a href="docs/roadmap.md">Roadmap</a> •
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
 
 ---
 
