@@ -194,6 +194,16 @@ If you find Prismer.AI helpful, please consider giving us a star! It helps us gr
   </a>
 </p>
 
+### Star History
+
+<a href="https://star-history.com/#Prismer-AI/Prismer&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Prismer-AI/Prismer&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Prismer-AI/Prismer&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Prismer-AI/Prismer&type=Date" />
+ </picture>
+</a>
+
 ---
 
 ## 📄 License
