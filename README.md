@@ -184,7 +184,17 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 
 ---
 
-## ⭐ Star History
+## ⭐ Star Us
+
+If you find Prismer.AI helpful, please consider giving us a star! It helps us grow and improve.
+
+<p align="center">
+  <a href="https://github.com/Prismer-AI/Prismer">
+    <img src="docs/star.gif" alt="Please Star Us" width="600" />
+  </a>
+</p>
+
+### Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Prismer-AI/Prismer&type=Date)](https://star-history.com/#Prismer-AI/Prismer&Date)
 
