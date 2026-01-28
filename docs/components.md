@@ -3,7 +3,7 @@
 Prismer.AI is built on modular, reusable components. Each package can be used independently in your own projects.
 
 <p align="center">
-  <img src="docs/component_collection.gif" alt="Component Collection Demo" width="800" />
+  <img src="component_collection.gif" alt="Component Collection Demo" width="800" />
 </p>
 
 ## Live Products
