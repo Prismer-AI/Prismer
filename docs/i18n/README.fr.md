@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/prismerlogo.jpeg" alt="Prismer.AI" width="120" />
+  <img src="../prismerlogo.jpeg" alt="Prismer.AI" width="120" />
 </p>
 
 <h1 align="center">Prismer.AI</h1>
@@ -12,7 +12,7 @@
   <a href="https://paper.prismer.ai/library">Lecture de Papers</a> ·
   <a href="https://prismer.cloud/">Context Cloud</a> ·
   <a href="https://docs.prismer.ai">Documentation</a> ·
-  <a href="docs/roadmap.md">Feuille de Route</a>
+  <a href="../roadmap.md">Feuille de Route</a>
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <a href="./README.md"><img alt="English" src="https://img.shields.io/badge/English-d9d9d9"></a>
+  <a href="../../README.md"><img alt="English" src="https://img.shields.io/badge/English-d9d9d9"></a>
   <a href="./README.zh-CN.md"><img alt="简体中文" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
   <a href="./README.ja.md"><img alt="日本語" src="https://img.shields.io/badge/日本語-d9d9d9"></a>
   <a href="./README.fr.md"><img alt="Français" src="https://img.shields.io/badge/Français-d9d9d9"></a>
@@ -145,7 +145,7 @@ Tous les composants principaux sont sous licence MIT et peuvent être utilisés 
 | `@prismer/code-sandbox` | Exécution de code WebContainer |
 | `@prismer/agent-protocol` | Orchestration multi-agent |
 
-👉 Voir la [Documentation des Composants](docs/components.md) pour des exemples d'utilisation.
+👉 Voir la [Documentation des Composants](../components.md) pour des exemples d'utilisation.
 
 ---
 
@@ -170,13 +170,13 @@ docker run -d -p 3000:3000 prismer/prismer
 | ✅ Éditeur LaTeX | 🚧 Guide d'auto-hébergement |
 | ✅ Système multi-agent | |
 
-Voir la [feuille de route complète](docs/roadmap.md) pour les détails.
+Voir la [feuille de route complète](../roadmap.md) pour les détails.
 
 ---
 
 ## 🤝 Contribution
 
-Les contributions sont les bienvenues ! Veuillez d'abord lire notre [Guide de Contribution](CONTRIBUTING.md).
+Les contributions sont les bienvenues ! Veuillez d'abord lire notre [Guide de Contribution](../../CONTRIBUTING.md).
 
 <a href="https://github.com/Prismer-AI/Prismer/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=Prismer-AI/Prismer" />
@@ -192,7 +192,7 @@ Les contributions sont les bienvenues ! Veuillez d'abord lire notre [Guide de Co
 
 ## 📄 Licence
 
-- **Composants** (`@prismer/*`): [Licence MIT](LICENSE.md)
+- **Composants** (`@prismer/*`): [Licence MIT](../../LICENSE.md)
 - **Plateforme**: Business Source License
 
 ---

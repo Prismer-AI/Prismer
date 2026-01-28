@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/prismerlogo.jpeg" alt="Prismer.AI" width="120" />
+  <img src="../prismerlogo.jpeg" alt="Prismer.AI" width="120" />
 </p>
 
 <h1 align="center">Prismer.AI</h1>
@@ -12,7 +12,7 @@
   <a href="https://paper.prismer.ai/library">Paper-Leser</a> ·
   <a href="https://prismer.cloud/">Context Cloud</a> ·
   <a href="https://docs.prismer.ai">Dokumentation</a> ·
-  <a href="docs/roadmap.md">Roadmap</a>
+  <a href="../roadmap.md">Roadmap</a>
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <a href="./README.md"><img alt="English" src="https://img.shields.io/badge/English-d9d9d9"></a>
+  <a href="../../README.md"><img alt="English" src="https://img.shields.io/badge/English-d9d9d9"></a>
   <a href="./README.zh-CN.md"><img alt="简体中文" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
   <a href="./README.ja.md"><img alt="日本語" src="https://img.shields.io/badge/日本語-d9d9d9"></a>
   <a href="./README.fr.md"><img alt="Français" src="https://img.shields.io/badge/Français-d9d9d9"></a>
@@ -145,7 +145,7 @@ Alle Kernkomponenten sind MIT-lizenziert und können unabhängig verwendet werde
 | `@prismer/code-sandbox` | WebContainer Code-Ausführung |
 | `@prismer/agent-protocol` | Multi-Agent-Orchestrierung |
 
-👉 Siehe [Komponenten-Dokumentation](docs/components.md) für Verwendungsbeispiele.
+👉 Siehe [Komponenten-Dokumentation](../components.md) für Verwendungsbeispiele.
 
 ---
 
@@ -170,13 +170,13 @@ docker run -d -p 3000:3000 prismer/prismer
 | ✅ LaTeX-Editor | 🚧 Self-Hosting-Anleitung |
 | ✅ Multi-Agent-System | |
 
-Siehe [vollständige Roadmap](docs/roadmap.md) für Details.
+Siehe [vollständige Roadmap](../roadmap.md) für Details.
 
 ---
 
 ## 🤝 Mitwirken
 
-Beiträge sind willkommen! Bitte lesen Sie zuerst unseren [Beitragsguide](CONTRIBUTING.md).
+Beiträge sind willkommen! Bitte lesen Sie zuerst unseren [Beitragsguide](../../CONTRIBUTING.md).
 
 <a href="https://github.com/Prismer-AI/Prismer/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=Prismer-AI/Prismer" />
@@ -192,7 +192,7 @@ Beiträge sind willkommen! Bitte lesen Sie zuerst unseren [Beitragsguide](CONTRI
 
 ## 📄 Lizenz
 
-- **Komponenten** (`@prismer/*`): [MIT-Lizenz](LICENSE.md)
+- **Komponenten** (`@prismer/*`): [MIT-Lizenz](../../LICENSE.md)
 - **Plattform**: Business Source License
 
 ---
