@@ -194,10 +194,6 @@ If you find Prismer.AI helpful, please consider giving us a star! It helps us gr
   </a>
 </p>
 
-### Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Prismer-AI/Prismer&type=Date)](https://star-history.com/#Prismer-AI/Prismer&Date)
-
 ---
 
 ## 📄 License
