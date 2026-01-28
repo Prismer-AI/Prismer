@@ -5,8 +5,7 @@
 <h1 align="center">Prismer.AI</h1>
 
 <p align="center">
-  <strong>Open Academic Research Operating System</strong><br>
-  <sub>Read → Analyze → Write → Review</sub>
+  <strong>Open Source OpenAI Prism Alternative</strong>
 </p>
 
 <p align="center">
