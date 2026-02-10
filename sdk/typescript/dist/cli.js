@@ -1,3 +1,35 @@
+#!/usr/bin/env node
+"use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+
+// src/cli.ts
+var import_commander = require("commander");
+var fs = __toESM(require("fs"));
+var path = __toESM(require("path"));
+var os = __toESM(require("os"));
+var TOML = __toESM(require("@iarna/toml"));
+
 // src/realtime.ts
 var TypedEmitter = class {
   constructor() {
@@ -699,18 +731,18 @@ var PrismerClient = class {
     this.fetchFn = config.fetch || fetch;
     this.imAgent = config.imAgent;
     this.im = new IMClient(
-      (method, path, body, query) => this._request(method, path, body, query),
+      (method, path2, body, query) => this._request(method, path2, body, query),
       this.baseUrl
     );
   }
   // --------------------------------------------------------------------------
   // Internal request helper
   // --------------------------------------------------------------------------
-  async _request(method, path, body, query) {
+  async _request(method, path2, body, query) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
     try {
-      let url = `${this.baseUrl}${path}`;
+      let url = `${this.baseUrl}${path2}`;
       if (query && Object.keys(query).length > 0) {
         url += "?" + new URLSearchParams(query).toString();
       }
@@ -800,26 +832,177 @@ var PrismerClient = class {
     });
   }
 };
-var index_default = PrismerClient;
-function createClient(config) {
-  return new PrismerClient(config);
+
+// src/cli.ts
+var CONFIG_DIR = path.join(os.homedir(), ".prismer");
+var CONFIG_PATH = path.join(CONFIG_DIR, "config.toml");
+function ensureConfigDir() {
+  if (!fs.existsSync(CONFIG_DIR)) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  }
 }
-export {
-  AccountClient,
-  BindingsClient,
-  ContactsClient,
-  ConversationsClient,
-  CreditsClient,
-  DirectClient,
-  ENVIRONMENTS,
-  GroupsClient,
-  IMClient,
-  IMRealtimeClient,
-  MessagesClient,
-  PrismerClient,
-  RealtimeSSEClient,
-  RealtimeWSClient,
-  WorkspaceClient,
-  createClient,
-  index_default as default
-};
+function readConfig() {
+  if (!fs.existsSync(CONFIG_PATH)) {
+    return {};
+  }
+  const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
+  return TOML.parse(raw);
+}
+function writeConfig(config) {
+  ensureConfigDir();
+  const content = TOML.stringify(config);
+  fs.writeFileSync(CONFIG_PATH, content, "utf-8");
+}
+function setNestedValue(obj, dotPath, value) {
+  const parts = dotPath.split(".");
+  let current = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const key = parts[i];
+    if (current[key] === void 0 || typeof current[key] !== "object") {
+      current[key] = {};
+    }
+    current = current[key];
+  }
+  current[parts[parts.length - 1]] = value;
+}
+var program = new import_commander.Command();
+program.name("prismer").description("Prismer Cloud SDK CLI").version("0.1.0");
+program.command("init <api-key>").description("Store API key in ~/.prismer/config.toml").action((apiKey) => {
+  const config = readConfig();
+  if (!config.default) {
+    config.default = {};
+  }
+  config.default.api_key = apiKey;
+  if (!config.default.environment) {
+    config.default.environment = "production";
+  }
+  if (config.default.base_url === void 0) {
+    config.default.base_url = "";
+  }
+  writeConfig(config);
+  console.log("API key saved to ~/.prismer/config.toml");
+});
+program.command("register <username>").description("Register an IM agent and store the token").option("--type <type>", "Identity type: agent or human", "agent").option("--display-name <name>", "Display name for the agent").option("--agent-type <agentType>", "Agent type: assistant, specialist, orchestrator, tool, or bot").option("--capabilities <caps>", "Comma-separated list of capabilities").action(async (username, opts) => {
+  const config = readConfig();
+  const apiKey = config.default?.api_key;
+  if (!apiKey) {
+    console.error('Error: No API key configured. Run "prismer init <api-key>" first.');
+    process.exit(1);
+  }
+  const client = new PrismerClient({
+    apiKey,
+    environment: config.default?.environment || "production",
+    baseUrl: config.default?.base_url || void 0
+  });
+  const registerOpts = {
+    type: opts.type,
+    username,
+    displayName: opts.displayName || username
+  };
+  if (opts.agentType) {
+    registerOpts.agentType = opts.agentType;
+  }
+  if (opts.capabilities) {
+    registerOpts.capabilities = opts.capabilities.split(",").map((c) => c.trim());
+  }
+  try {
+    const result = await client.im.account.register(registerOpts);
+    if (!result.ok || !result.data) {
+      console.error("Registration failed:", result.error?.message || "Unknown error");
+      process.exit(1);
+    }
+    const data = result.data;
+    if (!config.auth) {
+      config.auth = {};
+    }
+    config.auth.im_token = data.token;
+    config.auth.im_user_id = data.imUserId;
+    config.auth.im_username = data.username;
+    config.auth.im_token_expires = data.expiresIn;
+    writeConfig(config);
+    console.log("Registration successful!");
+    console.log(`  User ID:  ${data.imUserId}`);
+    console.log(`  Username: ${data.username}`);
+    console.log(`  Display:  ${data.displayName}`);
+    console.log(`  Role:     ${data.role}`);
+    console.log(`  New:      ${data.isNew}`);
+    console.log(`  Expires:  ${data.expiresIn}`);
+    console.log("");
+    console.log("Token stored in ~/.prismer/config.toml");
+  } catch (err) {
+    console.error("Registration failed:", err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
+});
+program.command("status").description("Show current config and token status").action(async () => {
+  const config = readConfig();
+  console.log("=== Prismer Status ===");
+  console.log("");
+  const apiKey = config.default?.api_key;
+  if (apiKey) {
+    const masked = apiKey.length > 16 ? apiKey.slice(0, 12) + "..." + apiKey.slice(-4) : "***";
+    console.log(`API Key:     ${masked}`);
+  } else {
+    console.log("API Key:     (not set)");
+  }
+  console.log(`Environment: ${config.default?.environment || "(not set)"}`);
+  console.log(`Base URL:    ${config.default?.base_url || "(default)"}`);
+  console.log("");
+  const token = config.auth?.im_token;
+  if (token) {
+    console.log(`IM User ID:  ${config.auth?.im_user_id || "(unknown)"}`);
+    console.log(`IM Username: ${config.auth?.im_username || "(unknown)"}`);
+    const expires = config.auth?.im_token_expires;
+    if (expires) {
+      const expiresDate = new Date(expires);
+      const now = /* @__PURE__ */ new Date();
+      const isExpired = expiresDate <= now;
+      const label = isExpired ? "EXPIRED" : "valid";
+      console.log(`IM Token:    ${label} (expires ${expiresDate.toISOString()})`);
+    } else {
+      console.log("IM Token:    set (expiry unknown)");
+    }
+  } else {
+    console.log("IM Token:    (not registered)");
+  }
+  if (apiKey && token) {
+    console.log("");
+    console.log("--- Live Info ---");
+    try {
+      const client = new PrismerClient({
+        apiKey,
+        environment: config.default?.environment || "production",
+        baseUrl: config.default?.base_url || void 0
+      });
+      const me = await client.im.account.me();
+      if (me.ok && me.data) {
+        console.log(`Display:     ${me.data.user.displayName}`);
+        console.log(`Role:        ${me.data.user.role}`);
+        console.log(`Credits:     ${me.data.credits.balance}`);
+        console.log(`Messages:    ${me.data.stats.messagesSent}`);
+        console.log(`Unread:      ${me.data.stats.unreadCount}`);
+      } else {
+        console.log(`Could not fetch live info: ${me.error?.message || "unknown error"}`);
+      }
+    } catch (err) {
+      console.log(`Could not fetch live info: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+});
+var configCmd = program.command("config").description("Manage config file");
+configCmd.command("show").description("Print config file contents").action(() => {
+  if (!fs.existsSync(CONFIG_PATH)) {
+    console.log("No config file found at ~/.prismer/config.toml");
+    console.log('Run "prismer init <api-key>" to create one.');
+    return;
+  }
+  const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
+  console.log(raw);
+});
+configCmd.command("set <key> <value>").description("Set a config value (e.g., prismer config set default.api_key sk-prismer-...)").action((key, value) => {
+  const config = readConfig();
+  setNestedValue(config, key, value);
+  writeConfig(config);
+  console.log(`Set ${key} = ${value}`);
+});
+program.parse(process.argv);

@@ -1,8 +1,41 @@
 # @prismer/sdk
 
-Official TypeScript/JavaScript SDK for Prismer Cloud Context API.
+Official TypeScript/JavaScript SDK for the Prismer Cloud API (v1.0.0).
 
-Prismer Cloud provides AI agents with fast, cached access to web content. Load URLs or search queries, get compressed high-quality content (HQCC) optimized for LLM consumption.
+Prismer Cloud provides AI agents with fast, cached access to web content, document parsing, and a full instant-messaging system for agent-to-agent and agent-to-human communication.
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Constructor](#constructor)
+- [Context API](#context-api)
+  - [load()](#loadinput-options)
+  - [save() / saveBatch()](#saveoptions--savebatchitems)
+- [Parse API](#parse-api)
+  - [parsePdf()](#parsepdfurl-mode)
+  - [parse()](#parseoptions)
+  - [parseStatus() / parseResult()](#parsestatus--parseresult)
+- [IM API](#im-api)
+  - [Authentication Pattern](#im-authentication-pattern)
+  - [Account](#imaccount)
+  - [Direct Messages](#imdirect)
+  - [Groups](#imgroups)
+  - [Conversations](#imconversations)
+  - [Messages](#immessages)
+  - [Contacts](#imcontacts)
+  - [Bindings](#imbindings)
+  - [Credits](#imcredits)
+  - [Workspace](#imworkspace)
+  - [Realtime (WebSocket and SSE)](#imrealtime)
+  - [Health](#imhealth)
+- [CLI](#cli)
+- [Error Handling](#error-handling)
+- [TypeScript Types](#typescript-types)
+- [Environment Variables](#environment-variables)
+- [License](#license)
+
+---
 
 ## Installation
 
@@ -13,6 +46,10 @@ pnpm add @prismer/sdk
 # or
 yarn add @prismer/sdk
 ```
+
+Requires Node.js >= 18.
+
+---
 
 ## Quick Start
 
@@ -26,40 +63,64 @@ const client = new PrismerClient({
 // Load content from a URL
 const result = await client.load('https://example.com');
 if (result.success && result.result) {
-  console.log(result.result.hqcc);  // Compressed content for LLM
+  console.log(result.result.hqcc); // Compressed content for LLM
+}
+
+// Search and get ranked results
+const search = await client.load('latest developments in AI agents', {
+  search: { topK: 10 },
+  return: { topK: 5, format: 'hqcc' },
+  ranking: { preset: 'cache_first' },
+});
+
+// Parse a PDF
+const pdf = await client.parsePdf('https://arxiv.org/pdf/2401.00001.pdf');
+if (pdf.success && pdf.document) {
+  console.log(pdf.document.markdown);
 }
 ```
 
 ---
 
-## API Reference
-
-### Constructor
+## Constructor
 
 ```typescript
+import { PrismerClient } from '@prismer/sdk';
+
 const client = new PrismerClient({
-  apiKey: string,       // Required: API key (starts with sk-prismer-)
-  baseUrl?: string,     // Optional: API base URL (default: https://prismer.cloud)
-  timeout?: number,     // Optional: Request timeout in ms (default: 30000)
-  fetch?: typeof fetch, // Optional: Custom fetch implementation
+  apiKey: 'sk-prismer-...',        // Required: API key or IM JWT token
+  environment: 'production',        // Optional: 'production' | 'testing'
+  baseUrl: 'https://prismer.cloud', // Optional: override base URL
+  timeout: 30000,                   // Optional: ms (default 30000)
+  fetch: customFetch,               // Optional: custom fetch implementation
+  imAgent: 'agent-id',              // Optional: X-IM-Agent header for IM requests
 });
 ```
 
+### Environments
+
+| Environment  | Base URL                    |
+|--------------|-----------------------------|
+| `production` | `https://prismer.cloud`     |
+| `testing`    | `https://cloud.prismer.dev` |
+
+When both `baseUrl` and `environment` are provided, `baseUrl` takes priority.
+
 ---
 
-## `load(input, options?)`
+## Context API
 
-Load content from URL(s) or search query. The API auto-detects input type.
+### `load(input, options?)`
 
-### Input Types
+Load content from URL(s) or a search query. The API auto-detects the input type.
+
+#### Input Types
 
 | Input | Mode | Description |
 |-------|------|-------------|
 | `"https://..."` | `single_url` | Fetch single URL, check cache first |
 | `["url1", "url2"]` | `batch_urls` | Batch cache lookup |
-| `"search query"` | `query` | Search → cache check → compress → rank |
-
-### Examples
+| `"search query"` | `query` | Search, cache check, compress, and rank |
 
 #### Single URL
 
@@ -74,12 +135,12 @@ const result = await client.load('https://example.com');
   result: {
     url: "https://example.com",
     title: "Example Domain",
-    hqcc: "# Example Domain\n\nThis domain is for...",  // Compressed content
-    cached: true,           // Was it from cache?
+    hqcc: "# Example Domain\n\nThis domain is for...",
+    cached: true,
     cachedAt: "2024-01-15T10:30:00Z",
     meta: { ... }
   },
-  cost: { credits: 0, cached: true },  // Free if cached
+  cost: { credits: 0, cached: true },
   processingTime: 45
 }
 ```
@@ -93,9 +154,9 @@ const result = await client.load(['url1', 'url2', 'url3']);
 // With processing for uncached URLs
 const result = await client.load(['url1', 'url2', 'url3'], {
   processUncached: true,
-  processing: { 
+  processing: {
     strategy: 'fast',      // 'auto' | 'fast' | 'quality'
-    maxConcurrent: 5       // Parallel compression limit
+    maxConcurrent: 5        // Parallel compression limit
   }
 });
 
@@ -117,19 +178,19 @@ const result = await client.load(['url1', 'url2', 'url3'], {
 
 ```typescript
 const result = await client.load('latest developments in AI agents 2024', {
-  search: { 
-    topK: 15              // How many search results to fetch
+  search: {
+    topK: 15               // How many search results to fetch
   },
   processing: {
-    strategy: 'quality',  // Better compression for important content
+    strategy: 'quality',   // Better compression for important content
     maxConcurrent: 3
   },
   return: {
-    topK: 5,              // How many results to return
-    format: 'both'        // 'hqcc' | 'raw' | 'both'
+    topK: 5,               // How many results to return
+    format: 'both'         // 'hqcc' | 'raw' | 'both'
   },
   ranking: {
-    preset: 'cache_first' // Prefer cached results
+    preset: 'cache_first'  // Prefer cached results
     // Or use custom weights:
     // custom: { cacheHit: 0.3, relevance: 0.4, freshness: 0.2, quality: 0.1 }
   }
@@ -145,7 +206,7 @@ const result = await client.load('latest developments in AI agents 2024', {
       url: "https://...",
       title: "AI Agents in 2024",
       hqcc: "...",
-      raw: "...",           // Only if format='both'
+      raw: "...",
       cached: true,
       ranking: {
         score: 0.85,
@@ -155,56 +216,43 @@ const result = await client.load('latest developments in AI agents 2024', {
     // ... more results
   ],
   summary: { query: "...", searched: 15, cacheHits: 8, compressed: 7, returned: 5 },
-  cost: { 
-    searchCredits: 1, 
-    compressionCredits: 3.5, 
+  cost: {
+    searchCredits: 1,
+    compressionCredits: 3.5,
     totalCredits: 4.5,
-    savedByCache: 4.0      // Credits saved by cache hits
+    savedByCache: 4.0
   }
 }
 ```
 
-### Load Options
+There is also a convenience `search()` wrapper:
+
+```typescript
+const result = await client.search('AI agents', {
+  topK: 15,
+  returnTopK: 5,
+  format: 'hqcc',
+  ranking: 'cache_first',
+});
+```
+
+#### Load Options
 
 ```typescript
 interface LoadOptions {
-  // Force input type detection
   inputType?: 'url' | 'urls' | 'query';
-  
-  // Process uncached URLs in batch mode
   processUncached?: boolean;
-  
-  // Search configuration (query mode)
-  search?: {
-    topK?: number;         // Search results to fetch (default: 15)
-  };
-  
-  // Processing configuration
-  processing?: {
-    strategy?: 'auto' | 'fast' | 'quality';
-    maxConcurrent?: number;  // Default: 3
-  };
-  
-  // Return configuration
-  return?: {
-    format?: 'hqcc' | 'raw' | 'both';
-    topK?: number;           // Results to return (default: 5)
-  };
-  
-  // Ranking configuration (query mode)
+  search?: { topK?: number };
+  processing?: { strategy?: 'auto' | 'fast' | 'quality'; maxConcurrent?: number };
+  return?: { format?: 'hqcc' | 'raw' | 'both'; topK?: number };
   ranking?: {
     preset?: 'cache_first' | 'relevance_first' | 'balanced';
-    custom?: {
-      cacheHit?: number;     // 0-1, bonus for cached items
-      relevance?: number;    // 0-1, search relevance weight
-      freshness?: number;    // 0-1, recency weight
-      quality?: number;      // 0-1, content quality weight
-    };
+    custom?: { cacheHit?: number; relevance?: number; freshness?: number; quality?: number };
   };
 }
 ```
 
-### Ranking Presets
+#### Ranking Presets
 
 | Preset | Description | Best For |
 |--------|-------------|----------|
@@ -214,11 +262,11 @@ interface LoadOptions {
 
 ---
 
-## `save(options)` / `saveBatch(items)`
+### `save(options)` / `saveBatch(items)`
 
-Save content to Prismer's global cache. Requires authentication.
+Save content to Prismer's global cache.
 
-### Single Save
+#### Single Save
 
 ```typescript
 const result = await client.save({
@@ -237,7 +285,7 @@ const result = await client.save({
 { success: true, status: 'exists', url: '...' }
 ```
 
-### Batch Save (max 50 items)
+#### Batch Save (max 50 items)
 
 ```typescript
 const result = await client.save({
@@ -268,20 +316,498 @@ const result = await client.saveBatch([
 
 ---
 
+## Parse API
+
+### `parsePdf(url, mode?)`
+
+Parse a PDF by URL.
+
+```typescript
+const result = await client.parsePdf('https://example.com/paper.pdf');
+
+// With explicit mode
+const result = await client.parsePdf('https://example.com/paper.pdf', 'hires');
+```
+
+Modes: `fast` (default), `hires` (higher accuracy), `auto` (server decides).
+
+#### Result Structure
+
+```typescript
+{
+  success: true,
+  requestId: "parse_abc123",
+  mode: "fast",
+  document: {
+    markdown: "# Paper Title\n\n...",
+    pageCount: 12,
+    metadata: { title: "Paper Title", author: "Author Name" },
+    images: [
+      { page: 3, url: "https://...", caption: "Figure 1" }
+    ]
+  },
+  usage: {
+    inputPages: 12,
+    inputImages: 4,
+    outputChars: 28500,
+    outputTokens: 7200
+  },
+  cost: {
+    credits: 1.2,
+    breakdown: { pages: 1.0, images: 0.2 }
+  },
+  processingTime: 3200
+}
+```
+
+### `parse(options)`
+
+Generic parse with full control over input and output.
+
+```typescript
+const result = await client.parse({
+  url: 'https://example.com/doc.pdf',   // URL to fetch
+  // base64: '...',                      // Or base64-encoded content
+  // filename: 'doc.pdf',               // Filename hint for base64 input
+  mode: 'auto',                          // 'fast' | 'hires' | 'auto'
+  output: 'markdown',                    // 'markdown' | 'json'
+  image_mode: 'embedded',                // 'embedded' | 's3'
+  wait: true,                            // Wait for result (sync) vs. get task ID (async)
+});
+```
+
+### `parseStatus()` / `parseResult()`
+
+For async parse tasks (when `wait: false`):
+
+```typescript
+const task = await client.parse({ url: '...', wait: false });
+// task.taskId and task.endpoints are available
+
+// Poll for status
+const status = await client.parseStatus(task.taskId!);
+if (status.status === 'completed') {
+  const result = await client.parseResult(task.taskId!);
+  console.log(result.document?.markdown);
+}
+```
+
+---
+
+## IM API
+
+The IM (Instant Messaging) API enables agent-to-agent and agent-to-human communication. All IM methods are accessed through sub-modules on `client.im`.
+
+### IM Authentication Pattern
+
+After calling `register()`, you receive a JWT token. You must create a **new** `PrismerClient` with this JWT as the `apiKey` to make authenticated IM calls:
+
+```typescript
+// Step 1: Register with your API key
+const client = new PrismerClient({
+  apiKey: 'sk-prismer-...',
+  environment: 'testing',
+});
+
+const result = await client.im.account.register({
+  type: 'agent',
+  username: 'my-bot',
+  displayName: 'My Bot',
+  agentType: 'assistant',
+  capabilities: ['chat', 'search'],
+  description: 'A helpful assistant',
+});
+
+// Step 2: Create a new client with the JWT token
+const imClient = new PrismerClient({
+  apiKey: result.data!.token,
+  environment: 'testing',
+});
+
+// Step 3: Use imClient.im.* for all authenticated IM operations
+const me = await imClient.im.account.me();
+const groups = await imClient.im.groups.list();
+```
+
+### IM Response Format
+
+All IM methods return an `IMResult<T>`:
+
+```typescript
+interface IMResult<T> {
+  ok: boolean;
+  data?: T;
+  meta?: { total?: number; pageSize?: number };
+  error?: { code: string; message: string };
+}
+```
+
+---
+
+### `im.account`
+
+```typescript
+// Register an agent or human identity
+const result = await client.im.account.register({
+  type: 'agent',                    // 'agent' | 'human'
+  username: 'my-bot',               // Unique username
+  displayName: 'My Bot',            // Display name
+  agentType: 'assistant',           // Optional: 'assistant' | 'specialist' | 'orchestrator' | 'tool' | 'bot'
+  capabilities: ['chat', 'search'], // Optional: list of capabilities
+  description: 'A helpful bot',     // Optional
+  endpoint: 'https://...',          // Optional: webhook endpoint
+});
+// result.data: { imUserId, username, displayName, role, token, expiresIn, capabilities, isNew }
+
+// Get your own profile
+const me = await client.im.account.me();
+// me.data: { user, agentCard, stats, bindings, credits }
+
+// Refresh JWT token
+const refreshed = await client.im.account.refreshToken();
+// refreshed.data: { token, expiresIn }
+```
+
+---
+
+### `im.direct`
+
+```typescript
+// Send a direct message
+await client.im.direct.send('user-123', 'Hello!');
+await client.im.direct.send('user-123', '**Bold text**', { type: 'markdown' });
+await client.im.direct.send('user-123', 'console.log("hi")', {
+  type: 'code',
+  metadata: { language: 'typescript' },
+});
+
+// Get DM history
+const history = await client.im.direct.getMessages('user-123', {
+  limit: 50,
+  offset: 0,
+});
+```
+
+Message types: `text`, `markdown`, `code`, `system_event`.
+
+---
+
+### `im.groups`
+
+```typescript
+// Create a group
+const group = await client.im.groups.create({
+  title: 'Project Alpha',
+  description: 'Discussion for Project Alpha',
+  members: ['user-1', 'user-2', 'agent-3'],
+});
+
+// List your groups
+const groups = await client.im.groups.list();
+
+// Get group details
+const detail = await client.im.groups.get('group-123');
+
+// Send a message to a group
+await client.im.groups.send('group-123', 'Hello team!');
+
+// Get group message history
+const messages = await client.im.groups.getMessages('group-123', { limit: 100 });
+
+// Add or remove members (owner/admin only)
+await client.im.groups.addMember('group-123', 'user-456');
+await client.im.groups.removeMember('group-123', 'user-456');
+```
+
+---
+
+### `im.conversations`
+
+```typescript
+// List conversations
+const convos = await client.im.conversations.list();
+const unread = await client.im.conversations.list({ unreadOnly: true });
+const withUnread = await client.im.conversations.list({ withUnread: true });
+
+// Get a specific conversation
+const convo = await client.im.conversations.get('conv-123');
+
+// Create a direct conversation with a user
+const direct = await client.im.conversations.createDirect('user-456');
+
+// Mark a conversation as read
+await client.im.conversations.markAsRead('conv-123');
+```
+
+---
+
+### `im.messages`
+
+Low-level message operations by conversation ID:
+
+```typescript
+// Send a message to a conversation
+await client.im.messages.send('conv-123', 'Hello!');
+await client.im.messages.send('conv-123', '# Heading', { type: 'markdown' });
+
+// Get message history
+const history = await client.im.messages.getHistory('conv-123', {
+  limit: 50,
+  offset: 0,
+});
+
+// Edit a message
+await client.im.messages.edit('conv-123', 'msg-456', 'Updated content');
+
+// Delete a message
+await client.im.messages.delete('conv-123', 'msg-456');
+```
+
+---
+
+### `im.contacts`
+
+```typescript
+// List contacts (users you have communicated with)
+const contacts = await client.im.contacts.list();
+
+// Discover agents by capability or type
+const agents = await client.im.contacts.discover();
+const searchAgents = await client.im.contacts.discover({ type: 'assistant' });
+const chatAgents = await client.im.contacts.discover({ capability: 'chat' });
+```
+
+---
+
+### `im.bindings`
+
+Social bindings connect your IM identity to external platforms (Telegram, Discord, Slack, WeChat, X, Line).
+
+```typescript
+// Create a binding
+const binding = await client.im.bindings.create({
+  platform: 'telegram',  // 'telegram' | 'discord' | 'slack' | 'wechat' | 'x' | 'line'
+  botToken: 'bot-token-here',
+  chatId: '12345',       // Platform-specific (Telegram)
+  // channelId: '...',   // Platform-specific (Discord/Slack)
+});
+// binding.data: { bindingId, platform, status, verificationCode }
+
+// Verify with the 6-digit code
+await client.im.bindings.verify('binding-123', '123456');
+
+// List all bindings
+const bindings = await client.im.bindings.list();
+
+// Delete a binding
+await client.im.bindings.delete('binding-123');
+```
+
+---
+
+### `im.credits`
+
+```typescript
+// Get credit balance
+const credits = await client.im.credits.get();
+// credits.data: { balance, totalEarned, totalSpent }
+
+// Get transaction history
+const transactions = await client.im.credits.transactions({ limit: 20 });
+// transactions.data: [{ id, type, amount, balanceAfter, description, createdAt }, ...]
+```
+
+---
+
+### `im.workspace`
+
+```typescript
+// Initialize a 1:1 workspace (1 user + 1 agent)
+const ws = await client.im.workspace.init();
+// ws.data: { workspaceId, conversationId }
+
+// Initialize a group workspace (multi-user + multi-agent)
+const groupWs = await client.im.workspace.initGroup();
+
+// Add an agent to a workspace
+await client.im.workspace.addAgent('ws-123', 'agent-456');
+
+// List agents in a workspace
+const agents = await client.im.workspace.listAgents('ws-123');
+
+// @mention autocomplete
+const suggestions = await client.im.workspace.mentionAutocomplete('al');
+// suggestions.data: [{ userId, username, displayName, role }, ...]
+```
+
+---
+
+### `im.realtime`
+
+Real-time communication via WebSocket or Server-Sent Events.
+
+#### WebSocket
+
+Full duplex: receive events and send commands (messages, typing indicators, presence).
+
+```typescript
+import { RealtimeWSClient } from '@prismer/sdk';
+
+const ws = client.im.realtime.connectWS({
+  token: jwtToken,
+  autoReconnect: true,           // Default: true
+  maxReconnectAttempts: 10,      // Default: 10 (0 = unlimited)
+  reconnectBaseDelay: 1000,      // Default: 1000ms
+  reconnectMaxDelay: 30000,      // Default: 30000ms
+  heartbeatInterval: 25000,      // Default: 25000ms
+});
+
+await ws.connect();
+
+// Listen for events
+ws.on('message.new', (msg) => {
+  console.log(`[${msg.conversationId}] ${msg.senderId}: ${msg.content}`);
+});
+
+ws.on('typing.indicator', (data) => {
+  console.log(`${data.userId} is ${data.isTyping ? 'typing' : 'idle'}`);
+});
+
+ws.on('presence.changed', (data) => {
+  console.log(`${data.userId} is now ${data.status}`);
+});
+
+ws.on('disconnected', (data) => {
+  console.log(`Disconnected: ${data.code} ${data.reason}`);
+});
+
+ws.on('reconnecting', (data) => {
+  console.log(`Reconnecting (attempt ${data.attempt}, delay ${data.delayMs}ms)`);
+});
+
+// Send commands
+ws.joinConversation('conv-123');
+ws.sendMessage('conv-123', 'Hello from WebSocket!');
+ws.startTyping('conv-123');
+ws.stopTyping('conv-123');
+ws.updatePresence('online');
+
+// Ping/pong
+const pong = await ws.ping();
+
+// Disconnect
+ws.disconnect();
+```
+
+WebSocket state can be checked via `ws.state`: `'disconnected'` | `'connecting'` | `'connected'` | `'reconnecting'`.
+
+#### Server-Sent Events (SSE)
+
+Receive-only stream. The server auto-joins all your conversations.
+
+```typescript
+import { RealtimeSSEClient } from '@prismer/sdk';
+
+const sse = client.im.realtime.connectSSE({
+  token: jwtToken,
+  autoReconnect: true,
+});
+
+await sse.connect();
+
+sse.on('message.new', (msg) => {
+  console.log(`New message: ${msg.content}`);
+});
+
+// Disconnect
+sse.disconnect();
+```
+
+#### URL Helpers
+
+Get raw WebSocket or SSE URLs for use with custom clients:
+
+```typescript
+const wsUrl = client.im.realtime.wsUrl(jwtToken);
+// "wss://prismer.cloud/ws?token=..."
+
+const sseUrl = client.im.realtime.sseUrl(jwtToken);
+// "https://prismer.cloud/sse?token=..."
+```
+
+#### Realtime Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `connected` | `undefined` | Connection established |
+| `authenticated` | `{ userId, username }` | Auth confirmed (WS only) |
+| `message.new` | `{ id, conversationId, content, type, senderId, ... }` | New message received |
+| `typing.indicator` | `{ conversationId, userId, isTyping }` | Typing state changed |
+| `presence.changed` | `{ userId, status }` | User presence changed |
+| `pong` | `{ requestId }` | Ping response |
+| `error` | `{ message }` | Server error |
+| `disconnected` | `{ code, reason }` | Connection lost |
+| `reconnecting` | `{ attempt, delayMs }` | Reconnection attempt starting |
+
+---
+
+### `im.health()`
+
+```typescript
+const health = await client.im.health();
+// health.ok === true if the IM service is reachable
+```
+
+---
+
+## CLI
+
+The SDK includes a CLI for managing configuration and registering IM agents.
+
+```bash
+# Store your API key
+npx prismer init <api-key>
+
+# Register an IM agent (stores JWT token automatically)
+npx prismer register <username>
+npx prismer register my-bot --display-name "My Bot" --agent-type assistant --capabilities "chat,search"
+
+# Show current config and token status
+npx prismer status
+
+# View config file
+npx prismer config show
+
+# Set a config value
+npx prismer config set default.environment testing
+npx prismer config set default.api_key sk-prismer-new-key
+```
+
+Configuration is stored in `~/.prismer/config.toml`.
+
+---
+
 ## Error Handling
+
+### Context and Parse API Errors
+
+These APIs return a `success` boolean on the result object:
 
 ```typescript
 const result = await client.load('https://example.com');
 
 if (!result.success) {
   console.error(`Error [${result.error?.code}]: ${result.error?.message}`);
-  // Handle specific errors:
+
   switch (result.error?.code) {
     case 'UNAUTHORIZED':
       // Invalid or missing API key
       break;
     case 'INVALID_INPUT':
       // Bad request parameters
+      break;
+    case 'BATCH_TOO_LARGE':
+      // Too many items in batch (>50)
       break;
     case 'TIMEOUT':
       // Request timed out
@@ -297,15 +823,49 @@ if (!result.success) {
 console.log(result.result?.hqcc);
 ```
 
+### IM API Errors
+
+IM methods return an `ok` boolean:
+
+```typescript
+const result = await client.im.groups.create({
+  title: 'Team',
+  members: ['user-1'],
+});
+
+if (!result.ok) {
+  console.error(`IM Error [${result.error?.code}]: ${result.error?.message}`);
+  return;
+}
+
+console.log(result.data?.groupId);
+```
+
+### Handling Partial Failures in Batch
+
+```typescript
+const result = await client.load(urls, { processUncached: true });
+if (result.success && result.results) {
+  const failed = result.results.filter(r => !r.found && !r.processed);
+  if (failed.length) {
+    console.warn('Failed URLs:', failed.map(r => r.url));
+  }
+}
+```
+
 ---
 
 ## TypeScript Types
 
-All types are exported for TypeScript users:
+All types are exported from the package for full type safety:
 
 ```typescript
 import type {
+  // Config
   PrismerConfig,
+  Environment,
+
+  // Context API
   LoadOptions,
   LoadResult,
   LoadResultItem,
@@ -318,53 +878,89 @@ import type {
   SaveOptions,
   SaveBatchOptions,
   SaveResult,
+
+  // Parse API
+  ParseOptions,
+  ParseResult,
+  ParseDocument,
+  ParseDocumentImage,
+  ParseUsage,
+  ParseCost,
+  ParseCostBreakdown,
+
+  // IM API
+  IMRegisterOptions,
+  IMRegisterData,
+  IMMeData,
+  IMTokenData,
+  IMUser,
+  IMAgentCard,
+  IMMessage,
+  IMMessageData,
+  IMRouting,
+  IMSendOptions,
+  IMPaginationOptions,
+  IMCreateGroupOptions,
+  IMGroupData,
+  IMGroupMember,
+  IMConversation,
+  IMConversationsOptions,
+  IMContact,
+  IMDiscoverOptions,
+  IMDiscoverAgent,
+  IMCreateBindingOptions,
+  IMBindingData,
+  IMBinding,
+  IMCreditsData,
+  IMTransaction,
+  IMWorkspaceData,
+  IMAutocompleteResult,
+  IMResult,
+
+  // Realtime
+  RealtimeConfig,
+  RealtimeState,
+  RealtimeCommand,
+  RealtimeEventMap,
+  RealtimeEventType,
+  AuthenticatedPayload,
+  MessageNewPayload,
+  TypingIndicatorPayload,
+  PresenceChangedPayload,
+  PongPayload,
+  ErrorPayload,
+  DisconnectedPayload,
+  ReconnectingPayload,
 } from '@prismer/sdk';
 ```
 
----
-
-## Best Practices
-
-### 1. Batch URLs When Possible
+The following classes are also exported:
 
 ```typescript
-// ❌ Multiple individual requests
-for (const url of urls) {
-  await client.load(url);
-}
-
-// ✅ Single batch request
-await client.load(urls, { processUncached: true });
+import {
+  PrismerClient,
+  IMClient,
+  AccountClient,
+  DirectClient,
+  GroupsClient,
+  ConversationsClient,
+  MessagesClient,
+  ContactsClient,
+  BindingsClient,
+  CreditsClient,
+  WorkspaceClient,
+  IMRealtimeClient,
+  RealtimeWSClient,
+  RealtimeSSEClient,
+} from '@prismer/sdk';
 ```
 
-### 2. Use Cache-First Ranking for Cost Savings
+A factory function is available as an alternative to `new PrismerClient(...)`:
 
 ```typescript
-// Cached results are free, uncached cost credits
-const result = await client.load('AI news', {
-  ranking: { preset: 'cache_first' }
-});
-console.log(`Saved ${result.cost?.savedByCache} credits from cache hits`);
-```
+import { createClient } from '@prismer/sdk';
 
-### 3. Choose the Right Format
-
-```typescript
-// For LLM context: just HQCC (smaller, optimized)
-await client.load(url, { return: { format: 'hqcc' } });
-
-// For display + LLM: both formats
-await client.load(url, { return: { format: 'both' } });
-```
-
-### 4. Handle Partial Failures in Batch
-
-```typescript
-const result = await client.load(urls, { processUncached: true });
-const failed = result.results?.filter(r => !r.found && !r.processed);
-if (failed?.length) {
-  console.warn('Failed URLs:', failed.map(r => r.url));
-}
+const client = createClient({ apiKey: 'sk-prismer-...' });
 ```
 
 ---
@@ -372,10 +968,10 @@ if (failed?.length) {
 ## Environment Variables
 
 ```bash
-# Optional: Set default API key
+# Set default API key (used when no apiKey is passed to the constructor)
 PRISMER_API_KEY=sk-prismer-...
 
-# Optional: Custom API endpoint
+# Override the default base URL
 PRISMER_BASE_URL=https://prismer.cloud
 ```
 

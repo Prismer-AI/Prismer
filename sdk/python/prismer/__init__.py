@@ -1,35 +1,125 @@
 """
 Prismer Cloud SDK for Python
 
-Official Python SDK for Prismer Cloud API.
+Official Python SDK for Prismer Cloud API — Context, Parse, and IM.
 
 Example:
     >>> from prismer import PrismerClient
     >>> client = PrismerClient(api_key="sk-prismer-...")
     >>> result = client.load("https://example.com")
-    >>> print(result.result.hqcc)
+    >>> pdf = client.parse_pdf("https://arxiv.org/pdf/2401.00001.pdf")
+    >>> client.im.direct.send("user-123", "Hello!")
+    >>> client.im.groups.list()
 """
 
-from .client import PrismerClient, AsyncPrismerClient
+from .client import PrismerClient, AsyncPrismerClient, IMClient, AsyncIMClient
+from .realtime import (
+    RealtimeConfig,
+    RealtimeWSClient,
+    RealtimeSSEClient,
+    AsyncRealtimeWSClient,
+    AsyncRealtimeSSEClient,
+    # Event payloads
+    AuthenticatedPayload,
+    MessageNewPayload,
+    TypingIndicatorPayload,
+    PresenceChangedPayload,
+    PongPayload,
+    ErrorPayload,
+    DisconnectedPayload,
+    ReconnectingPayload,
+)
 from .types import (
-    LoadOptions,
+    ENVIRONMENTS,
+    PrismerError,
+    # Context API
     LoadResult,
     LoadResultItem,
     SaveOptions,
     SaveBatchOptions,
     SaveResult,
-    PrismerError,
+    # Parse API
+    ParseOptions,
+    ParseResult,
+    ParseDocument,
+    ParseUsage,
+    ParseCost,
+    # IM API
+    IMResult,
+    IMRegisterOptions,
+    IMRegisterData,
+    IMMeData,
+    IMUser,
+    IMMessage,
+    IMMessageData,
+    IMGroupData,
+    IMContact,
+    IMDiscoverAgent,
+    IMBindingData,
+    IMBinding,
+    IMCreditsData,
+    IMTransaction,
+    IMTokenData,
+    IMConversation,
+    IMWorkspaceData,
+    IMAutocompleteResult,
 )
 
-__version__ = "0.1.0"
+__version__ = "1.1.0"
 __all__ = [
+    # Clients
     "PrismerClient",
     "AsyncPrismerClient",
-    "LoadOptions",
+    "IMClient",
+    "AsyncIMClient",
+    # Real-Time Clients
+    "RealtimeConfig",
+    "RealtimeWSClient",
+    "RealtimeSSEClient",
+    "AsyncRealtimeWSClient",
+    "AsyncRealtimeSSEClient",
+    # Real-Time Event Payloads
+    "AuthenticatedPayload",
+    "MessageNewPayload",
+    "TypingIndicatorPayload",
+    "PresenceChangedPayload",
+    "PongPayload",
+    "ErrorPayload",
+    "DisconnectedPayload",
+    "ReconnectingPayload",
+    # Environment
+    "ENVIRONMENTS",
+    # Shared
+    "PrismerError",
+    # Context API
     "LoadResult",
     "LoadResultItem",
     "SaveOptions",
     "SaveBatchOptions",
     "SaveResult",
-    "PrismerError",
+    # Parse API
+    "ParseOptions",
+    "ParseResult",
+    "ParseDocument",
+    "ParseUsage",
+    "ParseCost",
+    # IM API
+    "IMResult",
+    "IMRegisterOptions",
+    "IMRegisterData",
+    "IMMeData",
+    "IMUser",
+    "IMMessage",
+    "IMMessageData",
+    "IMGroupData",
+    "IMContact",
+    "IMDiscoverAgent",
+    "IMBindingData",
+    "IMBinding",
+    "IMCreditsData",
+    "IMTransaction",
+    "IMTokenData",
+    "IMConversation",
+    "IMWorkspaceData",
+    "IMAutocompleteResult",
 ]

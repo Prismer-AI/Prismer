@@ -78,7 +78,9 @@ Unlike tools that only handle writing (Overleaf) or note-taking (Notion), Prisme
 | Feature | Description |
 |---------|-------------|
 | 📖 **Paper Reading** | AI-native PDF reader with citation graphs |
-| ☁️ **Context Cloud** | Cloud-based knowledge management with SDK |
+| ☁️ **Context Cloud** | Cloud-based knowledge management with SDK (TypeScript, Python, Go) |
+| 💬 **IM & Agent Protocol** | Agent-to-agent messaging, groups, workspaces, real-time events |
+| 📄 **Document Parsing** | PDF/document parsing with markdown output |
 | 📊 **Data Analysis** | Jupyter notebooks with Python/R execution |
 | ✍️ **Paper Writing** | LaTeX editor with real-time preview |
 | 🔍 **Citation Verification** | Auto-checks references against academic databases |
@@ -91,7 +93,9 @@ Unlike tools that only handle writing (Overleaf) or note-taking (Notion), Prisme
 | Feature | Prismer.AI | OpenAI Prism | Overleaf | Google Scholar |
 |---------|:----------:|:------------:|:--------:|:--------------:|
 | Paper Reading | ✅ | ❌ | ❌ | ✅ |
-| Context Cloud | ✅ | ❌ | ❌ | ❌ |
+| Context Cloud + SDK | ✅ | ❌ | ❌ | ❌ |
+| Agent IM Protocol | ✅ | ❌ | ❌ | ❌ |
+| Document Parsing | ✅ | ❌ | ❌ | ❌ |
 | LaTeX Writing | ✅ | ✅ | ✅ | ❌ |
 | Data Analysis | ✅ | ❌ | ❌ | ❌ |
 | Code Execution | ✅ | ❌ | ❌ | ❌ |
@@ -115,19 +119,39 @@ AI-native PDF reader for research papers with:
 
 ### ☁️ Context Cloud
 
-Cloud-based context management with full SDK support:
+Cloud-based context management with full SDK support (TypeScript, Python, Go):
 
 ```typescript
-import { ContextCloudClient } from '@prismer/context-cloud-sdk';
+import { PrismerClient } from '@prismer/sdk';
 
-const client = new ContextCloudClient({ apiKey: 'your-api-key' });
+const client = new PrismerClient({ apiKey: 'sk-prismer-...' });
 
-// Create context and query
-const context = await client.contexts.create({ name: 'Research Project' });
-const response = await client.query({
-  contextId: context.id,
-  question: 'What are the main findings?'
+// Load and cache web content for LLM consumption
+const result = await client.load('https://arxiv.org/abs/2301.00234');
+console.log(result.result?.hqcc);  // Compressed content optimized for LLM
+
+// Parse PDF documents
+const pdf = await client.parsePdf('https://arxiv.org/pdf/2301.00234.pdf');
+console.log(pdf.document?.markdown);
+
+// Agent-to-agent messaging (IM)
+const reg = await client.im.account.register({
+  type: 'agent', username: 'research-bot', agentType: 'assistant',
 });
+```
+
+```python
+from prismer import PrismerClient
+
+client = PrismerClient(api_key="sk-prismer-...")
+result = client.load("https://example.com")
+print(result.result.hqcc)
+```
+
+```go
+client := prismer.NewClient("sk-prismer-...")
+result, _ := client.Load(ctx, "https://example.com", nil)
+fmt.Println(result.Result.HQCC)
 ```
 
 ### ✍️ LaTeX Editor
@@ -148,15 +172,34 @@ LLMs fabricate citations. Prismer.AI solves this with a **Reviewer Agent** that 
 
 All core components are MIT-licensed and can be used independently:
 
-| Package | Description |
-|---------|-------------|
-| `@prismer/paper-reader` | PDF reader with AI chat |
-| `@prismer/context-cloud-sdk` | Context Cloud TypeScript SDK |
-| `@prismer/latex-editor` | LaTeX editor with live preview |
-| `@prismer/academic-tools` | arXiv, Semantic Scholar APIs |
-| `@prismer/jupyter-kernel` | Browser-native notebooks |
-| `@prismer/code-sandbox` | WebContainer code execution |
-| `@prismer/agent-protocol` | Multi-agent orchestration |
+| Package | Language | Description |
+|---------|----------|-------------|
+| [`@prismer/sdk`](sdk/typescript/) | TypeScript | Context Cloud SDK — load, parse, IM, realtime, CLI |
+| [`prismer`](sdk/python/) | Python | Context Cloud SDK — sync + async, CLI |
+| [`prismer-sdk-go`](sdk/golang/) | Go | Context Cloud SDK — context-based, CLI |
+| `@prismer/paper-reader` | TypeScript | PDF reader with AI chat |
+| `@prismer/latex-editor` | TypeScript | LaTeX editor with live preview |
+| `@prismer/academic-tools` | TypeScript | arXiv, Semantic Scholar APIs |
+| `@prismer/jupyter-kernel` | TypeScript | Browser-native notebooks |
+| `@prismer/code-sandbox` | TypeScript | WebContainer code execution |
+| `@prismer/agent-protocol` | TypeScript | Multi-agent orchestration |
+
+### SDK Installation
+
+```bash
+# TypeScript / JavaScript
+npm install @prismer/sdk
+
+# Python
+pip install prismer
+
+# Go
+go get github.com/prismer-io/prismer-sdk-go
+```
+
+The SDK provides access to Context API (load/save web content), Parse API (PDF parsing), IM API (agent registration, direct messaging, groups, workspaces), and Realtime API (WebSocket/SSE). Each SDK includes a CLI tool (`prismer init`, `prismer register`, `prismer status`).
+
+See individual SDK READMEs for full API reference: [TypeScript](sdk/typescript/README.md) | [Python](sdk/python/README.md) | [Go](sdk/golang/README.md)
 
 👉 See [Component Documentation](docs/components.md) for usage examples.
 
@@ -186,7 +229,10 @@ See [docker/README.md](docker/README.md) for detailed setup instructions, config
 |------|-------------|
 | ✅ Paper Reader | 🚧 Reviewer Agent |
 | ✅ Context Cloud | 🚧 npm package extraction |
-| ✅ Context Cloud SDK | 🚧 Documentation site |
+| ✅ Context Cloud SDK v1.0.0 (TS, Python, Go) | 🚧 Documentation site |
+| ✅ IM API (agent messaging, groups, workspaces) | |
+| ✅ Parse API (PDF parsing) | |
+| ✅ SDK CLI (init, register, status) | |
 | ✅ LaTeX Editor | |
 | ✅ Multi-agent system | |
 | ✅ Self-hosting (Docker) | |
@@ -225,6 +271,7 @@ If you find Prismer.AI helpful, please consider giving us a star! It helps us gr
 
 ## 📄 License
 
+- **SDKs** (`@prismer/sdk`, `prismer`, `prismer-sdk-go`): [MIT License](LICENSE.md)
 - **Components** (`@prismer/*`): [MIT License](LICENSE.md)
 - **Platform**: Business Source License
 

@@ -6,8 +6,14 @@ __pycache__/
 *.pyc
 
 # Build artifacts
+dist/
 *.tgz
 *.egg-info/
+build/
+
+# Auth tokens
+.npmrc
+.pypirc
 
 # IDE
 .idea/
