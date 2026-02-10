@@ -385,6 +385,23 @@ type IMAutocompleteResult struct {
 	Role        string `json:"role"`
 }
 
+type IMWorkspaceInitOptions struct {
+	WorkspaceID     string `json:"workspaceId"`
+	UserID          string `json:"userId"`
+	UserDisplayName string `json:"userDisplayName"`
+}
+
+type IMWorkspaceInitGroupUser struct {
+	UserID      string `json:"userId"`
+	DisplayName string `json:"displayName"`
+}
+
+type IMWorkspaceInitGroupOptions struct {
+	WorkspaceID string                     `json:"workspaceId"`
+	Title       string                     `json:"title"`
+	Users       []IMWorkspaceInitGroupUser `json:"users"`
+}
+
 type IMCreateGroupOptions struct {
 	Title       string         `json:"title"`
 	Description string         `json:"description,omitempty"`

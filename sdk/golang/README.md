@@ -746,10 +746,15 @@ im.Credits.Transactions(ctx, &prismer.IMPaginationOptions{Limit: 50})
 
 ```go
 // Initialize a workspace.
-im.Workspace.Init(ctx) // -> decode as IMWorkspaceData
+im.Workspace.Init(ctx, &prismer.IMWorkspaceInitOptions{
+    WorkspaceID: "my-ws", UserID: "user-123", UserDisplayName: "Alice",
+})
 
 // Initialize a group workspace.
-im.Workspace.InitGroup(ctx) // -> decode as IMWorkspaceData
+im.Workspace.InitGroup(ctx, &prismer.IMWorkspaceInitGroupOptions{
+    WorkspaceID: "my-ws", Title: "Team Workspace",
+    Users: []prismer.IMWorkspaceInitGroupUser{{UserID: "user-123", DisplayName: "Alice"}},
+})
 
 // Add an agent to a workspace.
 im.Workspace.AddAgent(ctx, workspaceID, agentID)
@@ -758,7 +763,7 @@ im.Workspace.AddAgent(ctx, workspaceID, agentID)
 im.Workspace.ListAgents(ctx, workspaceID)
 
 // Autocomplete mentions (search users by query).
-im.Workspace.MentionAutocomplete(ctx, "query") // -> decode as []IMAutocompleteResult
+im.Workspace.MentionAutocomplete(ctx, "conv-123", "query") // -> decode as []IMAutocompleteResult
 ```
 
 ### Realtime

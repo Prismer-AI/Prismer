@@ -675,7 +675,7 @@ describe('IM API', () => {
     let workspaceId: string;
 
     it('init() — initializes a 1:1 workspace', async () => {
-      const result = await clientA.im.workspace.init();
+      const result = await clientA.im.workspace.init({ workspaceId: 'test-ws-int', userId: 'test-user', userDisplayName: 'Test User' });
       // Workspace may or may not be available in test env
       if (result.ok) {
         expect(result.data).toBeDefined();
@@ -689,7 +689,7 @@ describe('IM API', () => {
     });
 
     it('initGroup() — initializes a group workspace', async () => {
-      const result = await clientA.im.workspace.initGroup();
+      const result = await clientA.im.workspace.initGroup({ workspaceId: 'test-grp-ws-int', title: 'Integration Group', users: [{ userId: 'test-user', displayName: 'Test User' }] });
       if (result.ok) {
         expect(result.data).toBeDefined();
         expect(result.data!.workspaceId).toBeDefined();
@@ -699,7 +699,7 @@ describe('IM API', () => {
     });
 
     it('mentionAutocomplete() — searches for @mention targets', async () => {
-      const result = await clientA.im.workspace.mentionAutocomplete('agent');
+      const result = await clientA.im.workspace.mentionAutocomplete('test-conv', 'agent');
       if (result.ok) {
         expect(result.data).toBeDefined();
         expect(Array.isArray(result.data)).toBe(true);

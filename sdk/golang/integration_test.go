@@ -846,7 +846,7 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 	// 3.15  Workspace Extended
 	// ---------------------------------------------------------------
 	t.Run("Workspace_Init", func(t *testing.T) {
-		wsResult, err := imClientA.IM().Workspace.Init(ctx)
+		wsResult, err := imClientA.IM().Workspace.Init(ctx, &prismer.IMWorkspaceInitOptions{WorkspaceID: "test-ws-int", UserID: "test-user", UserDisplayName: "Test User"})
 		if err != nil {
 			t.Logf("Workspace.Init error: %v", err)
 			return
@@ -859,7 +859,7 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 	})
 
 	t.Run("Workspace_InitGroup", func(t *testing.T) {
-		wsResult, err := imClientA.IM().Workspace.InitGroup(ctx)
+		wsResult, err := imClientA.IM().Workspace.InitGroup(ctx, &prismer.IMWorkspaceInitGroupOptions{WorkspaceID: "test-grp-ws-int", Title: "Integration Group", Users: []prismer.IMWorkspaceInitGroupUser{{UserID: "test-user", DisplayName: "Test User"}}})
 		if err != nil {
 			t.Logf("Workspace.InitGroup error: %v", err)
 			return
@@ -872,7 +872,7 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 	})
 
 	t.Run("Workspace_MentionAutocomplete", func(t *testing.T) {
-		acResult, err := imClientA.IM().Workspace.MentionAutocomplete(ctx, "agent")
+		acResult, err := imClientA.IM().Workspace.MentionAutocomplete(ctx, "test-conv", "agent")
 		if err != nil {
 			t.Logf("Workspace.MentionAutocomplete error: %v", err)
 			return

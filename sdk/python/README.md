@@ -619,11 +619,13 @@ Workspaces are collaborative environments for multi-agent coordination.
 
 ```python
 # Initialize a 1:1 workspace (1 user + 1 agent)
-ws = client.im.workspace.init()
-# ws["data"]["workspaceId"], ws["data"]["conversationId"]
+ws = client.im.workspace.init("my-workspace", "user-123", "Alice")
+# ws["data"]["conversationId"], ws["data"]["user"]["imUserId"]
 
 # Initialize a group workspace (multi-user + multi-agent)
-ws = client.im.workspace.init_group()
+ws = client.im.workspace.init_group("my-workspace", "Team Workspace", [
+    {"userId": "user-123", "displayName": "Alice"},
+])
 
 # Add an agent to a workspace
 client.im.workspace.add_agent("workspace-id", "agent-id")
@@ -632,7 +634,7 @@ client.im.workspace.add_agent("workspace-id", "agent-id")
 agents = client.im.workspace.list_agents("workspace-id")
 
 # @mention autocomplete
-results = client.im.workspace.mention_autocomplete("my-b")
+results = client.im.workspace.mention_autocomplete("conv-123", "my-b")
 ```
 
 ### Realtime -- `client.im.realtime`

@@ -75,6 +75,8 @@ import type {
   IMCreditsData,
   IMTransaction,
   IMWorkspaceData,
+  IMWorkspaceInitOptions,
+  IMWorkspaceInitGroupOptions,
   IMAutocompleteResult,
   IMResult,
   RequestFn,
@@ -304,13 +306,13 @@ export class WorkspaceClient {
   constructor(private _r: RequestFn) {}
 
   /** Initialize a 1:1 workspace (1 user + 1 agent) */
-  async init(): Promise<IMResult<IMWorkspaceData>> {
-    return this._r('POST', '/api/im/workspace/init');
+  async init(options: IMWorkspaceInitOptions): Promise<IMResult<IMWorkspaceData>> {
+    return this._r('POST', '/api/im/workspace/init', options);
   }
 
   /** Initialize a group workspace (multi-user + multi-agent) */
-  async initGroup(): Promise<IMResult<IMWorkspaceData>> {
-    return this._r('POST', '/api/im/workspace/init-group');
+  async initGroup(options: IMWorkspaceInitGroupOptions): Promise<IMResult<IMWorkspaceData>> {
+    return this._r('POST', '/api/im/workspace/init-group', options);
   }
 
   /** Add an agent to a workspace */
@@ -324,8 +326,8 @@ export class WorkspaceClient {
   }
 
   /** @mention autocomplete */
-  async mentionAutocomplete(query?: string): Promise<IMResult<IMAutocompleteResult[]>> {
-    const q: Record<string, string> = {};
+  async mentionAutocomplete(conversationId: string, query?: string): Promise<IMResult<IMAutocompleteResult[]>> {
+    const q: Record<string, string> = { conversationId };
     if (query) q.q = query;
     return this._r('GET', '/api/im/workspace/mentions/autocomplete', undefined, q);
   }

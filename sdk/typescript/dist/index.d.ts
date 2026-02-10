@@ -499,8 +499,26 @@ interface IMConversation {
     updatedAt?: string;
 }
 interface IMWorkspaceData {
-    workspaceId: string;
+    workspaceId?: string;
     conversationId: string;
+    user?: {
+        imUserId: string;
+        token: string;
+    };
+    agent?: any;
+}
+interface IMWorkspaceInitOptions {
+    workspaceId: string;
+    userId: string;
+    userDisplayName: string;
+}
+interface IMWorkspaceInitGroupOptions {
+    workspaceId: string;
+    title: string;
+    users: Array<{
+        userId: string;
+        displayName: string;
+    }>;
 }
 interface IMAutocompleteResult {
     userId: string;
@@ -677,15 +695,15 @@ declare class WorkspaceClient {
     private _r;
     constructor(_r: RequestFn);
     /** Initialize a 1:1 workspace (1 user + 1 agent) */
-    init(): Promise<IMResult<IMWorkspaceData>>;
+    init(options: IMWorkspaceInitOptions): Promise<IMResult<IMWorkspaceData>>;
     /** Initialize a group workspace (multi-user + multi-agent) */
-    initGroup(): Promise<IMResult<IMWorkspaceData>>;
+    initGroup(options: IMWorkspaceInitGroupOptions): Promise<IMResult<IMWorkspaceData>>;
     /** Add an agent to a workspace */
     addAgent(workspaceId: string, agentId: string): Promise<IMResult<void>>;
     /** List agents in a workspace */
     listAgents(workspaceId: string): Promise<IMResult<any[]>>;
     /** @mention autocomplete */
-    mentionAutocomplete(query?: string): Promise<IMResult<IMAutocompleteResult[]>>;
+    mentionAutocomplete(conversationId: string, query?: string): Promise<IMResult<IMAutocompleteResult[]>>;
 }
 /** Real-time connection factory (WebSocket & SSE) */
 declare class IMRealtimeClient {
@@ -755,4 +773,4 @@ declare class PrismerClient {
 
 declare function createClient(config: PrismerConfig): PrismerClient;
 
-export { AccountClient, type AuthenticatedPayload, type BatchSummary, type BatchUrlCost, BindingsClient, ContactsClient, ConversationsClient, CreditsClient, DirectClient, type DisconnectedPayload, ENVIRONMENTS, type Environment, type ErrorPayload, GroupsClient, type IMAgentCard, type IMAutocompleteResult, type IMBinding, type IMBindingData, IMClient, type IMContact, type IMConversation, type IMConversationsOptions, type IMCreateBindingOptions, type IMCreateGroupOptions, type IMCreditsData, type IMDiscoverAgent, type IMDiscoverOptions, type IMGroupData, type IMGroupMember, type IMMeData, type IMMessage, type IMMessageData, type IMPaginationOptions, IMRealtimeClient, type IMRegisterData, type IMRegisterOptions, type IMResult, type IMRouting, type IMSendOptions, type IMTokenData, type IMTransaction, type IMUser, type IMWorkspaceData, type LoadOptions, type LoadResult, type LoadResultItem, type MessageNewPayload, MessagesClient, type ParseCost, type ParseCostBreakdown, type ParseDocument, type ParseDocumentImage, type ParseOptions, type ParseResult, type ParseUsage, type PongPayload, type PresenceChangedPayload, PrismerClient, type PrismerConfig, type QueryCost, type QuerySummary, type RankingFactors, type RealtimeCommand, type RealtimeConfig, type RealtimeEventMap, type RealtimeEventType, RealtimeSSEClient, type RealtimeState, RealtimeWSClient, type ReconnectingPayload, type RequestFn, type SaveBatchOptions, type SaveOptions, type SaveResult, type SingleUrlCost, type TypingIndicatorPayload, WorkspaceClient, createClient, PrismerClient as default };
+export { AccountClient, type AuthenticatedPayload, type BatchSummary, type BatchUrlCost, BindingsClient, ContactsClient, ConversationsClient, CreditsClient, DirectClient, type DisconnectedPayload, ENVIRONMENTS, type Environment, type ErrorPayload, GroupsClient, type IMAgentCard, type IMAutocompleteResult, type IMBinding, type IMBindingData, IMClient, type IMContact, type IMConversation, type IMConversationsOptions, type IMCreateBindingOptions, type IMCreateGroupOptions, type IMCreditsData, type IMDiscoverAgent, type IMDiscoverOptions, type IMGroupData, type IMGroupMember, type IMMeData, type IMMessage, type IMMessageData, type IMPaginationOptions, IMRealtimeClient, type IMRegisterData, type IMRegisterOptions, type IMResult, type IMRouting, type IMSendOptions, type IMTokenData, type IMTransaction, type IMUser, type IMWorkspaceData, type IMWorkspaceInitGroupOptions, type IMWorkspaceInitOptions, type LoadOptions, type LoadResult, type LoadResultItem, type MessageNewPayload, MessagesClient, type ParseCost, type ParseCostBreakdown, type ParseDocument, type ParseDocumentImage, type ParseOptions, type ParseResult, type ParseUsage, type PongPayload, type PresenceChangedPayload, PrismerClient, type PrismerConfig, type QueryCost, type QuerySummary, type RankingFactors, type RealtimeCommand, type RealtimeConfig, type RealtimeEventMap, type RealtimeEventType, RealtimeSSEClient, type RealtimeState, RealtimeWSClient, type ReconnectingPayload, type RequestFn, type SaveBatchOptions, type SaveOptions, type SaveResult, type SingleUrlCost, type TypingIndicatorPayload, WorkspaceClient, createClient, PrismerClient as default };

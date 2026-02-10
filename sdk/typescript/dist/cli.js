@@ -653,12 +653,12 @@ var WorkspaceClient = class {
     this._r = _r;
   }
   /** Initialize a 1:1 workspace (1 user + 1 agent) */
-  async init() {
-    return this._r("POST", "/api/im/workspace/init");
+  async init(options) {
+    return this._r("POST", "/api/im/workspace/init", options);
   }
   /** Initialize a group workspace (multi-user + multi-agent) */
-  async initGroup() {
-    return this._r("POST", "/api/im/workspace/init-group");
+  async initGroup(options) {
+    return this._r("POST", "/api/im/workspace/init-group", options);
   }
   /** Add an agent to a workspace */
   async addAgent(workspaceId, agentId) {
@@ -669,8 +669,8 @@ var WorkspaceClient = class {
     return this._r("GET", `/api/im/workspace/${workspaceId}/agents`);
   }
   /** @mention autocomplete */
-  async mentionAutocomplete(query) {
-    const q = {};
+  async mentionAutocomplete(conversationId, query) {
+    const q = { conversationId };
     if (query) q.q = query;
     return this._r("GET", "/api/im/workspace/mentions/autocomplete", void 0, q);
   }
@@ -959,22 +959,26 @@ program.command("status").description("Show current config and token status").ac
     const expires = config.auth?.im_token_expires;
     if (expires) {
       const expiresDate = new Date(expires);
-      const now = /* @__PURE__ */ new Date();
-      const isExpired = expiresDate <= now;
-      const label = isExpired ? "EXPIRED" : "valid";
-      console.log(`IM Token:    ${label} (expires ${expiresDate.toISOString()})`);
+      if (!isNaN(expiresDate.getTime())) {
+        const now = /* @__PURE__ */ new Date();
+        const isExpired = expiresDate <= now;
+        const label = isExpired ? "EXPIRED" : "valid";
+        console.log(`IM Token:    ${label} (expires ${expiresDate.toISOString()})`);
+      } else {
+        console.log(`IM Token:    set (expires in ${expires})`);
+      }
     } else {
       console.log("IM Token:    set (expiry unknown)");
     }
   } else {
     console.log("IM Token:    (not registered)");
   }
-  if (apiKey && token) {
+  if (token) {
     console.log("");
     console.log("--- Live Info ---");
     try {
       const client = new PrismerClient({
-        apiKey,
+        apiKey: token,
         environment: config.default?.environment || "production",
         baseUrl: config.default?.base_url || void 0
       });

@@ -318,8 +318,22 @@ export interface IMConversation {
 }
 
 export interface IMWorkspaceData {
-  workspaceId: string;
+  workspaceId?: string;
   conversationId: string;
+  user?: { imUserId: string; token: string };
+  agent?: any;
+}
+
+export interface IMWorkspaceInitOptions {
+  workspaceId: string;
+  userId: string;
+  userDisplayName: string;
+}
+
+export interface IMWorkspaceInitGroupOptions {
+  workspaceId: string;
+  title: string;
+  users: Array<{ userId: string; displayName: string }>;
 }
 
 export interface IMAutocompleteResult {

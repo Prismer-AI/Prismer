@@ -263,13 +263,17 @@ class WorkspaceClient:
     def __init__(self, request_fn):
         self._request = request_fn
 
-    def init(self) -> IMResult:
+    def init(self, workspace_id: str, user_id: str, user_display_name: str) -> IMResult:
         """Initialize a 1:1 workspace (1 user + 1 agent)."""
-        return self._request("POST", "/api/im/workspace/init")
+        return self._request("POST", "/api/im/workspace/init", json={
+            "workspaceId": workspace_id, "userId": user_id, "userDisplayName": user_display_name,
+        })
 
-    def init_group(self) -> IMResult:
+    def init_group(self, workspace_id: str, title: str, users: list) -> IMResult:
         """Initialize a group workspace (multi-user + multi-agent)."""
-        return self._request("POST", "/api/im/workspace/init-group")
+        return self._request("POST", "/api/im/workspace/init-group", json={
+            "workspaceId": workspace_id, "title": title, "users": users,
+        })
 
     def add_agent(self, workspace_id: str, agent_id: str) -> IMResult:
         """Add an agent to a workspace."""
@@ -281,9 +285,9 @@ class WorkspaceClient:
         """List agents in a workspace."""
         return self._request("GET", f"/api/im/workspace/{workspace_id}/agents")
 
-    def mention_autocomplete(self, query: Optional[str] = None) -> IMResult:
+    def mention_autocomplete(self, conversation_id: str, query: Optional[str] = None) -> IMResult:
         """@mention autocomplete."""
-        params: Dict[str, Any] = {}
+        params: Dict[str, Any] = {"conversationId": conversation_id}
         if query:
             params["q"] = query
         return self._request("GET", "/api/im/workspace/mentions/autocomplete", params=params)
@@ -552,11 +556,15 @@ class AsyncWorkspaceClient:
     def __init__(self, request_fn):
         self._request = request_fn
 
-    async def init(self) -> IMResult:
-        return await self._request("POST", "/api/im/workspace/init")
+    async def init(self, workspace_id: str, user_id: str, user_display_name: str) -> IMResult:
+        return await self._request("POST", "/api/im/workspace/init", json={
+            "workspaceId": workspace_id, "userId": user_id, "userDisplayName": user_display_name,
+        })
 
-    async def init_group(self) -> IMResult:
-        return await self._request("POST", "/api/im/workspace/init-group")
+    async def init_group(self, workspace_id: str, title: str, users: list) -> IMResult:
+        return await self._request("POST", "/api/im/workspace/init-group", json={
+            "workspaceId": workspace_id, "title": title, "users": users,
+        })
 
     async def add_agent(self, workspace_id: str, agent_id: str) -> IMResult:
         return await self._request(
@@ -566,8 +574,8 @@ class AsyncWorkspaceClient:
     async def list_agents(self, workspace_id: str) -> IMResult:
         return await self._request("GET", f"/api/im/workspace/{workspace_id}/agents")
 
-    async def mention_autocomplete(self, query: Optional[str] = None) -> IMResult:
-        params: Dict[str, Any] = {}
+    async def mention_autocomplete(self, conversation_id: str, query: Optional[str] = None) -> IMResult:
+        params: Dict[str, Any] = {"conversationId": conversation_id}
         if query:
             params["q"] = query
         return await self._request("GET", "/api/im/workspace/mentions/autocomplete", params=params)

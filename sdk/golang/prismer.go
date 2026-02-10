@@ -541,12 +541,12 @@ func (cr *CreditsClient) Transactions(ctx context.Context, opts *IMPaginationOpt
 // WorkspaceClient handles workspace management.
 type WorkspaceClient struct{ im *IMClient }
 
-func (w *WorkspaceClient) Init(ctx context.Context) (*IMResult, error) {
-	return w.im.do(ctx, "POST", "/api/im/workspace/init", nil, nil)
+func (w *WorkspaceClient) Init(ctx context.Context, opts *IMWorkspaceInitOptions) (*IMResult, error) {
+	return w.im.do(ctx, "POST", "/api/im/workspace/init", opts, nil)
 }
 
-func (w *WorkspaceClient) InitGroup(ctx context.Context) (*IMResult, error) {
-	return w.im.do(ctx, "POST", "/api/im/workspace/init-group", nil, nil)
+func (w *WorkspaceClient) InitGroup(ctx context.Context, opts *IMWorkspaceInitGroupOptions) (*IMResult, error) {
+	return w.im.do(ctx, "POST", "/api/im/workspace/init-group", opts, nil)
 }
 
 func (w *WorkspaceClient) AddAgent(ctx context.Context, workspaceID, agentID string) (*IMResult, error) {
@@ -557,10 +557,10 @@ func (w *WorkspaceClient) ListAgents(ctx context.Context, workspaceID string) (*
 	return w.im.do(ctx, "GET", "/api/im/workspace/"+workspaceID+"/agents", nil, nil)
 }
 
-func (w *WorkspaceClient) MentionAutocomplete(ctx context.Context, query string) (*IMResult, error) {
-	var q map[string]string
+func (w *WorkspaceClient) MentionAutocomplete(ctx context.Context, conversationID string, query string) (*IMResult, error) {
+	q := map[string]string{"conversationId": conversationID}
 	if query != "" {
-		q = map[string]string{"q": query}
+		q["q"] = query
 	}
 	return w.im.do(ctx, "GET", "/api/im/workspace/mentions/autocomplete", nil, q)
 }

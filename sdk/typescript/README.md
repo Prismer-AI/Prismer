@@ -721,11 +721,19 @@ const transactions = await client.im.credits.transactions({ limit: 20 });
 
 ```typescript
 // Initialize a 1:1 workspace (1 user + 1 agent)
-const ws = await client.im.workspace.init();
-// ws.data: { workspaceId, conversationId }
+const ws = await client.im.workspace.init({
+  workspaceId: 'my-workspace',
+  userId: 'user-123',
+  userDisplayName: 'Alice',
+});
+// ws.data: { conversationId, user: { imUserId, token } }
 
 // Initialize a group workspace (multi-user + multi-agent)
-const groupWs = await client.im.workspace.initGroup();
+const groupWs = await client.im.workspace.initGroup({
+  workspaceId: 'my-group-workspace',
+  title: 'Team Workspace',
+  users: [{ userId: 'user-123', displayName: 'Alice' }],
+});
 
 // Add an agent to a workspace
 await client.im.workspace.addAgent('ws-123', 'agent-456');
@@ -734,7 +742,7 @@ await client.im.workspace.addAgent('ws-123', 'agent-456');
 const agents = await client.im.workspace.listAgents('ws-123');
 
 // @mention autocomplete
-const suggestions = await client.im.workspace.mentionAutocomplete('al');
+const suggestions = await client.im.workspace.mentionAutocomplete('conv-123', 'al');
 // suggestions.data: [{ userId, username, displayName, role }, ...]
 ```
 

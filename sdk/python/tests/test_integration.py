@@ -756,7 +756,7 @@ class TestIMLifecycle:
             timeout=60.0,
         )
         try:
-            res = agent_client.im.workspace.init_group()
+            res = agent_client.im.workspace.init_group("test-ws-int", "Integration Group", [{"userId": "test-user", "displayName": "Test"}])
             if res.get("ok"):
                 data = res.get("data", {})
                 assert "workspaceId" in data
@@ -773,7 +773,7 @@ class TestIMLifecycle:
             timeout=60.0,
         )
         try:
-            res = agent_client.im.workspace.mention_autocomplete("agent")
+            res = agent_client.im.workspace.mention_autocomplete("test-conv", "agent")
             if res.get("ok"):
                 data = res.get("data", [])
                 assert isinstance(data, list)

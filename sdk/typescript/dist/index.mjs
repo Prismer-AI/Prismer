@@ -621,12 +621,12 @@ var WorkspaceClient = class {
     this._r = _r;
   }
   /** Initialize a 1:1 workspace (1 user + 1 agent) */
-  async init() {
-    return this._r("POST", "/api/im/workspace/init");
+  async init(options) {
+    return this._r("POST", "/api/im/workspace/init", options);
   }
   /** Initialize a group workspace (multi-user + multi-agent) */
-  async initGroup() {
-    return this._r("POST", "/api/im/workspace/init-group");
+  async initGroup(options) {
+    return this._r("POST", "/api/im/workspace/init-group", options);
   }
   /** Add an agent to a workspace */
   async addAgent(workspaceId, agentId) {
@@ -637,8 +637,8 @@ var WorkspaceClient = class {
     return this._r("GET", `/api/im/workspace/${workspaceId}/agents`);
   }
   /** @mention autocomplete */
-  async mentionAutocomplete(query) {
-    const q = {};
+  async mentionAutocomplete(conversationId, query) {
+    const q = { conversationId };
     if (query) q.q = query;
     return this._r("GET", "/api/im/workspace/mentions/autocomplete", void 0, q);
   }
