@@ -39,12 +39,29 @@ Prismer Cloud provides AI agents with fast, cached access to web content, docume
 
 ## Installation
 
+### As a library
+
 ```bash
 npm install @prismer/sdk
 # or
 pnpm add @prismer/sdk
 # or
 yarn add @prismer/sdk
+```
+
+### As a CLI tool
+
+Install globally to use the `prismer` command:
+
+```bash
+npm install -g @prismer/sdk
+prismer --help
+```
+
+Or run without global install:
+
+```bash
+npx @prismer/sdk --help
 ```
 
 Requires Node.js >= 18.

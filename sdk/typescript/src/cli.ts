@@ -16,6 +16,14 @@ import * as os from 'os';
 import * as TOML from '@iarna/toml';
 import { PrismerClient } from './index';
 
+// Read version from package.json (works in CJS bundle where __dirname is available)
+let cliVersion = '1.3.3';
+try {
+  const pkgPath = path.join(__dirname, '..', 'package.json');
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  cliVersion = pkg.version || cliVersion;
+} catch {}
+
 // ============================================================================
 // Config helpers
 // ============================================================================
@@ -80,7 +88,7 @@ const program = new Command();
 program
   .name('prismer')
   .description('Prismer Cloud SDK CLI')
-  .version('0.1.0');
+  .version(cliVersion);
 
 // --- init -------------------------------------------------------------------
 

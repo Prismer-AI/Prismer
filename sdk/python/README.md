@@ -11,8 +11,26 @@ Prismer Cloud provides AI agents with fast, cached access to web content. Load U
 
 ## Installation
 
+### As a library
+
 ```bash
 pip install prismer
+```
+
+### As a CLI tool
+
+Install with [pipx](https://pipx.pypa.io/) for global CLI access (recommended):
+
+```bash
+pipx install prismer
+prismer --help
+```
+
+Or install with pip and run via module:
+
+```bash
+pip install prismer
+python -m prismer --help
 ```
 
 Requires Python 3.8+.

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	prismer "github.com/prismer-io/prismer-sdk-go"
+	prismer "github.com/Prismer-AI/Prismer/sdk/golang"
 	"github.com/spf13/cobra"
 )
 

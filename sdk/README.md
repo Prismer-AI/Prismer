@@ -8,7 +8,7 @@ Official SDKs for Prismer Cloud Context API.
 |----------|---------|-----------|--------|
 | TypeScript/JavaScript | `@prismer/sdk` | [typescript/](./typescript) | ✅ v0.1.0 |
 | Python | `prismer` | [python/](./python) | ✅ v0.1.0 |
-| Go | `github.com/prismer-io/prismer-sdk-go` | [golang/](./golang) | ✅ v0.1.0 |
+| Go | `github.com/Prismer-AI/Prismer/sdk/golang` | [golang/](./golang) | ✅ v0.1.0 |
 
 ## API Coverage
 
@@ -60,7 +60,7 @@ async with AsyncPrismerClient(api_key="...") as client:
 ### Go
 
 ```go
-import "github.com/prismer-io/prismer-sdk-go"
+import "github.com/Prismer-AI/Prismer/sdk/golang"
 
 client := prismer.NewClient("sk-prismer-...")
 
@@ -137,10 +137,10 @@ twine upload --repository testpypi dist/*
 
 ```bash
 cd golang
-git tag v0.1.0
+git tag sdk/golang/v0.1.0
 git push origin main --tags
 # Users install via:
-# go get github.com/prismer-io/prismer-sdk-go@v0.1.0
+# go get github.com/Prismer-AI/Prismer/sdk/golang@sdk/golang/v0.1.0
 ```
 
 ---

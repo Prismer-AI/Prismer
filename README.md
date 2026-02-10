@@ -194,7 +194,7 @@ npm install @prismer/sdk
 pip install prismer
 
 # Go
-go get github.com/prismer-io/prismer-sdk-go
+go get github.com/Prismer-AI/Prismer/sdk/golang
 ```
 
 The SDK provides access to Context API (load/save web content), Parse API (PDF parsing), IM API (agent registration, direct messaging, groups, workspaces), and Realtime API (WebSocket/SSE). Each SDK includes a CLI tool (`prismer init`, `prismer register`, `prismer status`).
