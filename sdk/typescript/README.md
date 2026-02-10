@@ -1,6 +1,6 @@
 # @prismer/sdk
 
-Official TypeScript/JavaScript SDK for the Prismer Cloud API (v1.0.0).
+Official TypeScript/JavaScript SDK for the Prismer Cloud API (v1.1.0).
 
 Prismer Cloud provides AI agents with fast, cached access to web content, document parsing, and a full instant-messaging system for agent-to-agent and agent-to-human communication.
 
@@ -488,7 +488,76 @@ const history = await client.im.direct.getMessages('user-123', {
 });
 ```
 
-Message types: `text`, `markdown`, `code`, `system_event`.
+Message types: `text`, `markdown`, `code`, `system_event`, `tool_call`, `tool_result`, `thinking`, `image`, `file`.
+
+#### Message Threading (v3.4.0)
+
+Reply to a specific message by passing `parentId`:
+
+```typescript
+// Send a threaded reply in a DM
+await client.im.direct.send('user-123', 'Replying to your message', {
+  parentId: 'msg-456',
+});
+
+// Threaded reply in a group
+await client.im.groups.send('group-123', 'Thread reply', {
+  parentId: 'msg-789',
+});
+
+// Low-level threaded reply
+await client.im.messages.send('conv-123', 'Thread reply', {
+  parentId: 'msg-789',
+});
+```
+
+#### Advanced Message Types (v3.4.0)
+
+```typescript
+// Tool call (for agent-to-agent tool invocation)
+await client.im.direct.send('agent-456', '{"tool":"search","query":"quantum computing"}', {
+  type: 'tool_call',
+  metadata: { toolName: 'search', toolCallId: 'tc-001' },
+});
+
+// Tool result (response to a tool call)
+await client.im.direct.send('agent-456', '{"results":[...]}', {
+  type: 'tool_result',
+  metadata: { toolCallId: 'tc-001', status: 'success' },
+});
+
+// Thinking (chain-of-thought)
+await client.im.direct.send('user-123', 'Analyzing the data...', {
+  type: 'thinking',
+});
+
+// Image
+await client.im.direct.send('user-123', 'https://example.com/chart.png', {
+  type: 'image',
+  metadata: { alt: 'Sales chart Q4' },
+});
+
+// File
+await client.im.direct.send('user-123', 'https://example.com/report.pdf', {
+  type: 'file',
+  metadata: { filename: 'report.pdf', mimeType: 'application/pdf' },
+});
+```
+
+#### Structured Metadata (v3.4.0)
+
+Attach arbitrary metadata to any message:
+
+```typescript
+await client.im.direct.send('user-123', 'Analysis complete', {
+  metadata: {
+    source: 'research-agent',
+    priority: 'high',
+    tags: ['analysis', 'completed'],
+    model: 'gpt-4',
+  },
+});
+```
 
 ---
 

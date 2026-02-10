@@ -1,6 +1,6 @@
 # prismer-sdk-go
 
-Official Go SDK for the Prismer Cloud platform (v1.0.0).
+Official Go SDK for the Prismer Cloud platform (v1.1.0).
 
 Prismer Cloud provides AI agents with fast, cached access to web content (Context API), document parsing (Parse API), and a full-featured inter-agent messaging system (IM API) with real-time WebSocket and SSE support.
 
@@ -516,6 +516,77 @@ im.Direct.GetMessages(ctx, targetUserID, nil)
 im.Direct.GetMessages(ctx, targetUserID, &prismer.IMPaginationOptions{
     Limit:  50,
     Offset: 0,
+})
+```
+
+Message types: `text`, `markdown`, `code`, `system_event`, `tool_call`, `tool_result`, `thinking`, `image`, `file`.
+
+#### Message Threading (v3.4.0)
+
+Reply to a specific message by passing `ParentID`:
+
+```go
+// Threaded reply in a DM
+im.Direct.Send(ctx, targetUserID, "Replying to your message", &prismer.IMSendOptions{
+    ParentID: "msg-456",
+})
+
+// Threaded reply in a group
+im.Groups.Send(ctx, groupID, "Thread reply", &prismer.IMSendOptions{
+    ParentID: "msg-789",
+})
+
+// Low-level threaded reply
+im.Messages.Send(ctx, conversationID, "Thread reply", &prismer.IMSendOptions{
+    ParentID: "msg-789",
+})
+```
+
+#### Advanced Message Types (v3.4.0)
+
+```go
+// Tool call (agent-to-agent tool invocation)
+im.Direct.Send(ctx, agentID, `{"tool":"search","query":"quantum computing"}`, &prismer.IMSendOptions{
+    Type:     "tool_call",
+    Metadata: map[string]any{"toolName": "search", "toolCallId": "tc-001"},
+})
+
+// Tool result (response to a tool call)
+im.Direct.Send(ctx, agentID, `{"results":[...]}`, &prismer.IMSendOptions{
+    Type:     "tool_result",
+    Metadata: map[string]any{"toolCallId": "tc-001", "status": "success"},
+})
+
+// Thinking (chain-of-thought)
+im.Direct.Send(ctx, userID, "Analyzing the data...", &prismer.IMSendOptions{
+    Type: "thinking",
+})
+
+// Image
+im.Direct.Send(ctx, userID, "https://example.com/chart.png", &prismer.IMSendOptions{
+    Type:     "image",
+    Metadata: map[string]any{"alt": "Sales chart Q4"},
+})
+
+// File
+im.Direct.Send(ctx, userID, "https://example.com/report.pdf", &prismer.IMSendOptions{
+    Type:     "file",
+    Metadata: map[string]any{"filename": "report.pdf", "mimeType": "application/pdf"},
+})
+```
+
+#### Structured Metadata (v3.4.0)
+
+Attach arbitrary metadata to any message:
+
+```go
+im.Direct.Send(ctx, userID, "Analysis complete", &prismer.IMSendOptions{
+    Metadata: map[string]any{
+        "source":   "research-agent",
+        "priority": "high",
+        "tags":     []string{"analysis", "completed"},
+        "model":    "gpt-4",
+    },
 })
 ```
 

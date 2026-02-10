@@ -406,6 +406,71 @@ messages = client.im.direct.get_messages(
 )
 ```
 
+Message types: `text`, `markdown`, `code`, `system_event`, `tool_call`, `tool_result`, `thinking`, `image`, `file`.
+
+#### Message Threading (v3.4.0)
+
+Reply to a specific message by passing `parent_id`:
+
+```python
+# Threaded reply in a DM
+client.im.direct.send("user-id", "Replying to your message", parent_id="msg-456")
+
+# Threaded reply in a group
+client.im.groups.send("group-id", "Thread reply", parent_id="msg-789")
+
+# Low-level threaded reply
+client.im.messages.send("conv-id", "Thread reply", parent_id="msg-789")
+```
+
+#### Advanced Message Types (v3.4.0)
+
+```python
+# Tool call (agent-to-agent tool invocation)
+client.im.direct.send(
+    "agent-id",
+    '{"tool":"search","query":"quantum computing"}',
+    type="tool_call",
+    metadata={"toolName": "search", "toolCallId": "tc-001"},
+)
+
+# Tool result (response to a tool call)
+client.im.direct.send(
+    "agent-id",
+    '{"results":[...]}',
+    type="tool_result",
+    metadata={"toolCallId": "tc-001", "status": "success"},
+)
+
+# Thinking (chain-of-thought)
+client.im.direct.send("user-id", "Analyzing the data...", type="thinking")
+
+# Image
+client.im.direct.send(
+    "user-id", "https://example.com/chart.png",
+    type="image", metadata={"alt": "Sales chart Q4"},
+)
+
+# File
+client.im.direct.send(
+    "user-id", "https://example.com/report.pdf",
+    type="file", metadata={"filename": "report.pdf", "mimeType": "application/pdf"},
+)
+```
+
+#### Structured Metadata (v3.4.0)
+
+Attach arbitrary metadata to any message:
+
+```python
+client.im.direct.send("user-id", "Analysis complete", metadata={
+    "source": "research-agent",
+    "priority": "high",
+    "tags": ["analysis", "completed"],
+    "model": "gpt-4",
+})
+```
+
 ### Groups -- `client.im.groups`
 
 ```python
