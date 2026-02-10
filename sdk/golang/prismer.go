@@ -39,12 +39,10 @@ type Environment string
 
 const (
 	Production Environment = "production"
-	Testing    Environment = "testing"
 )
 
 var environments = map[Environment]string{
 	Production: "https://prismer.cloud",
-	Testing:    "https://cloud.prismer.dev",
 }
 
 const (
@@ -90,6 +88,8 @@ func WithIMAgent(agent string) ClientOption {
 	return func(c *Client) { c.imAgent = agent }
 }
 
+// NewClient creates a new Prismer client.
+// apiKey is optional — pass "" for anonymous IM registration.
 func NewClient(apiKey string, opts ...ClientOption) *Client {
 	c := &Client{
 		apiKey:  apiKey,
@@ -105,6 +105,12 @@ func NewClient(apiKey string, opts ...ClientOption) *Client {
 
 	c.im = newIMClient(c)
 	return c
+}
+
+// SetToken sets or updates the auth token (API key or IM JWT).
+// Useful after anonymous registration to set the returned JWT.
+func (c *Client) SetToken(token string) {
+	c.apiKey = token
 }
 
 // IM returns the IM API sub-client.
@@ -143,7 +149,9 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 	if c.imAgent != "" {
 		req.Header.Set("X-IM-Agent", c.imAgent)
 	}

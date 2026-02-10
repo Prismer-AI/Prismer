@@ -459,8 +459,7 @@ var RealtimeSSEClient = class extends TypedEmitter {
 
 // src/types.ts
 var ENVIRONMENTS = {
-  production: "https://prismer.cloud",
-  testing: "https://cloud.prismer.dev"
+  production: "https://prismer.cloud"
 };
 
 // src/index.ts
@@ -717,14 +716,11 @@ var IMClient = class {
   }
 };
 var PrismerClient = class {
-  constructor(config) {
-    if (!config.apiKey) {
-      throw new Error("apiKey is required");
-    }
-    if (!config.apiKey.startsWith("sk-prismer-") && !config.apiKey.startsWith("eyJ")) {
+  constructor(config = {}) {
+    if (config.apiKey && !config.apiKey.startsWith("sk-prismer-") && !config.apiKey.startsWith("eyJ")) {
       console.warn('Warning: API key should start with "sk-prismer-" (or "eyJ" for IM JWT)');
     }
-    this.apiKey = config.apiKey;
+    this.apiKey = config.apiKey || "";
     const envUrl = ENVIRONMENTS[config.environment || "production"];
     this.baseUrl = (config.baseUrl || envUrl).replace(/\/$/, "");
     this.timeout = config.timeout || 3e4;
@@ -734,6 +730,13 @@ var PrismerClient = class {
       (method, path2, body, query) => this._request(method, path2, body, query),
       this.baseUrl
     );
+  }
+  /**
+   * Set or update the auth token (API key or IM JWT).
+   * Useful after anonymous registration to set the returned JWT.
+   */
+  setToken(token) {
+    this.apiKey = token;
   }
   // --------------------------------------------------------------------------
   // Internal request helper
@@ -746,9 +749,10 @@ var PrismerClient = class {
       if (query && Object.keys(query).length > 0) {
         url += "?" + new URLSearchParams(query).toString();
       }
-      const headers = {
-        "Authorization": `Bearer ${this.apiKey}`
-      };
+      const headers = {};
+      if (this.apiKey) {
+        headers["Authorization"] = `Bearer ${this.apiKey}`;
+      }
       if (this.imAgent) {
         headers["X-IM-Agent"] = this.imAgent;
       }

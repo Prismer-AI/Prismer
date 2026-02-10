@@ -128,7 +128,7 @@ program
 
     const client = new PrismerClient({
       apiKey,
-      environment: (config.default?.environment as 'production' | 'testing') || 'production',
+      environment: (config.default?.environment as 'production') || 'production',
       baseUrl: config.default?.base_url || undefined,
     });
 
@@ -233,7 +233,7 @@ program
       try {
         const client = new PrismerClient({
           apiKey,
-          environment: (config.default?.environment as 'production' | 'testing') || 'production',
+          environment: (config.default?.environment as 'production') || 'production',
           baseUrl: config.default?.base_url || undefined,
         });
         const me = await client.im.account.me();

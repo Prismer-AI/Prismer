@@ -397,7 +397,7 @@ export class IMClient {
 // ============================================================================
 
 export class PrismerClient {
-  private readonly apiKey: string;
+  private apiKey: string;
   private readonly baseUrl: string;
   private readonly timeout: number;
   private readonly fetchFn: typeof fetch;
@@ -406,15 +406,12 @@ export class PrismerClient {
   /** IM API sub-client */
   readonly im: IMClient;
 
-  constructor(config: PrismerConfig) {
-    if (!config.apiKey) {
-      throw new Error('apiKey is required');
-    }
-    if (!config.apiKey.startsWith('sk-prismer-') && !config.apiKey.startsWith('eyJ')) {
+  constructor(config: PrismerConfig = {}) {
+    if (config.apiKey && !config.apiKey.startsWith('sk-prismer-') && !config.apiKey.startsWith('eyJ')) {
       console.warn('Warning: API key should start with "sk-prismer-" (or "eyJ" for IM JWT)');
     }
 
-    this.apiKey = config.apiKey;
+    this.apiKey = config.apiKey || '';
     const envUrl = ENVIRONMENTS[config.environment || 'production'];
     this.baseUrl = (config.baseUrl || envUrl).replace(/\/$/, '');
     this.timeout = config.timeout || 30000;
@@ -425,6 +422,14 @@ export class PrismerClient {
       (method, path, body, query) => this._request(method, path, body, query),
       this.baseUrl,
     );
+  }
+
+  /**
+   * Set or update the auth token (API key or IM JWT).
+   * Useful after anonymous registration to set the returned JWT.
+   */
+  setToken(token: string): void {
+    this.apiKey = token;
   }
 
   // --------------------------------------------------------------------------
@@ -446,9 +451,10 @@ export class PrismerClient {
         url += '?' + new URLSearchParams(query).toString();
       }
 
-      const headers: Record<string, string> = {
-        'Authorization': `Bearer ${this.apiKey}`,
-      };
+      const headers: Record<string, string> = {};
+      if (this.apiKey) {
+        headers['Authorization'] = `Bearer ${this.apiKey}`;
+      }
       if (this.imAgent) {
         headers['X-IM-Agent'] = this.imAgent;
       }

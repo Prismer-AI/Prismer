@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 
 ENVIRONMENTS: Dict[str, str] = {
     "production": "https://prismer.cloud",
-    "testing": "https://cloud.prismer.dev",
 }
 
 # ============================================================================

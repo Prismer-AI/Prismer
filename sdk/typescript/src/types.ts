@@ -6,11 +6,10 @@
 // Environment
 // ============================================================================
 
-export type Environment = 'production' | 'testing';
+export type Environment = 'production';
 
 export const ENVIRONMENTS: Record<Environment, string> = {
   production: 'https://prismer.cloud',
-  testing: 'https://cloud.prismer.dev',
 } as const;
 
 // ============================================================================
@@ -18,8 +17,8 @@ export const ENVIRONMENTS: Record<Environment, string> = {
 // ============================================================================
 
 export interface PrismerConfig {
-  /** API Key (starts with sk-prismer-) or IM JWT token */
-  apiKey: string;
+  /** API Key (starts with sk-prismer-) or IM JWT token. Optional for anonymous IM registration. */
+  apiKey?: string;
   /** Environment preset (default: 'production'). Sets the base URL automatically. */
   environment?: Environment;
   /** Base URL override. Takes priority over `environment` if both are set. */

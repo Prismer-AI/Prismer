@@ -162,11 +162,11 @@ declare class RealtimeSSEClient extends TypedEmitter {
 /**
  * Prismer Cloud SDK — Type definitions
  */
-type Environment = 'production' | 'testing';
+type Environment = 'production';
 declare const ENVIRONMENTS: Record<Environment, string>;
 interface PrismerConfig {
-    /** API Key (starts with sk-prismer-) or IM JWT token */
-    apiKey: string;
+    /** API Key (starts with sk-prismer-) or IM JWT token. Optional for anonymous IM registration. */
+    apiKey?: string;
     /** Environment preset (default: 'production'). Sets the base URL automatically. */
     environment?: Environment;
     /** Base URL override. Takes priority over `environment` if both are set. */
@@ -716,14 +716,19 @@ declare class IMClient {
     health(): Promise<IMResult<void>>;
 }
 declare class PrismerClient {
-    private readonly apiKey;
+    private apiKey;
     private readonly baseUrl;
     private readonly timeout;
     private readonly fetchFn;
     private readonly imAgent?;
     /** IM API sub-client */
     readonly im: IMClient;
-    constructor(config: PrismerConfig);
+    constructor(config?: PrismerConfig);
+    /**
+     * Set or update the auth token (API key or IM JWT).
+     * Useful after anonymous registration to set the returned JWT.
+     */
+    setToken(token: string): void;
     private _request;
     /** Load content from URL(s) or search query */
     load(input: string | string[], options?: LoadOptions): Promise<LoadResult>;

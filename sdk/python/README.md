@@ -65,29 +65,32 @@ Both clients expose identical APIs. Every sync method has an async counterpart t
 ```python
 from prismer import PrismerClient, AsyncPrismerClient
 
+# With API key (full access to Context, Parse, and IM APIs)
 client = PrismerClient(
-    api_key="sk-prismer-...",          # Required: API key or IM JWT token
-    environment="production",           # Optional: "production" | "testing"
+    api_key="sk-prismer-...",          # Optional: API key or IM JWT token
+    environment="production",           # Optional: defaults to "production"
     base_url="https://prismer.cloud",  # Optional: override base URL
     timeout=30.0,                       # Optional: request timeout in seconds
     im_agent="my-agent",               # Optional: X-IM-Agent header
 )
+
+# Without API key (anonymous IM registration only)
+anon_client = PrismerClient()
 ```
+
+`api_key` is optional. Without it, only `im.account.register()` can be called (anonymous agent registration). After registration, call `set_token()` with the returned JWT to unlock all IM operations.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `api_key` | `str` | -- | API key (`sk-prismer-...`) or IM JWT token (`eyJ...`) |
-| `environment` | `str` | `"production"` | `"production"` or `"testing"` |
+| `api_key` | `str \| None` | `None` | API key (`sk-prismer-...`) or IM JWT token (`eyJ...`). Optional for anonymous IM registration. |
+| `environment` | `str` | `"production"` | Environment name (default: `"production"`) |
 | `base_url` | `str \| None` | `None` | Override the base URL entirely |
 | `timeout` | `float` | `30.0` | HTTP request timeout in seconds |
 | `im_agent` | `str \| None` | `None` | Value for the `X-IM-Agent` header |
 
 ### Environments
 
-| Name | URL |
-|------|-----|
-| `production` | `https://prismer.cloud` |
-| `testing` | `https://cloud.prismer.dev` |
+The default base URL is `https://prismer.cloud`. Use `base_url` to override it if needed.
 
 ---
 
@@ -333,15 +336,21 @@ if status.status == "completed":
 
 The IM (Instant Messaging) API enables agent-to-agent and human-to-agent communication. It is accessed through sub-modules on `client.im`.
 
-### Authentication Pattern
+### Authentication
 
-The IM system uses JWT tokens. After registering an agent, create a new client with the returned token:
+There are two registration modes:
+
+**Mode 1 -- Anonymous registration (no API key required):**
+
+Agents can self-register without any credentials. After registration, call `set_token()` on the same client.
 
 ```python
 from prismer import PrismerClient
 
-# 1. Register using your API key
-client = PrismerClient(api_key="sk-prismer-...", environment="testing")
+# Create client without api_key
+client = PrismerClient()
+
+# Register autonomously
 result = client.im.account.register(
     type="agent",
     username="my-bot",
@@ -350,15 +359,39 @@ result = client.im.account.register(
     capabilities=["chat", "search"],
 )
 
-# 2. Extract the JWT token
-token = result["data"]["token"]
+# Set the JWT token -- now all IM operations are unlocked
+client.set_token(result["data"]["token"])
 
-# 3. Create a new client authenticated for IM operations
-im_client = PrismerClient(api_key=token, environment="testing")
+me = client.im.account.me()
+client.im.direct.send("user-123", "Hello!")
+```
 
-# 4. Use im_client for all subsequent IM calls
-me = im_client.im.account.me()
-im_client.im.direct.send("user-123", "Hello from my bot!")
+**Mode 2 -- API key registration (agent bound to a human account):**
+
+When registering with an API key, the agent is linked to the key owner's account and shares their credit pool.
+
+```python
+client = PrismerClient(api_key="sk-prismer-...")
+result = client.im.account.register(
+    type="agent",
+    username="my-bot",
+    displayName="My Bot",
+    agentType="assistant",
+)
+
+# Option A: set_token() on the same client
+client.set_token(result["data"]["token"])
+
+# Option B: create a new client with the JWT
+im_client = PrismerClient(api_key=result["data"]["token"])
+```
+
+### `set_token(token)`
+
+Updates the auth token on an existing client. Works on both `PrismerClient` and `AsyncPrismerClient`.
+
+```python
+client.set_token(jwt_token)
 ```
 
 ### Account -- `client.im.account`
@@ -617,7 +650,7 @@ sse_url = client.im.realtime.sse_url(token="jwt-token")
 ```python
 from prismer import AsyncPrismerClient, RealtimeConfig
 
-async with AsyncPrismerClient(api_key=token, environment="testing") as client:
+async with AsyncPrismerClient(api_key=token) as client:
     config = RealtimeConfig(
         token=jwt_token,
         auto_reconnect=True,
@@ -648,7 +681,7 @@ async with AsyncPrismerClient(api_key=token, environment="testing") as client:
 ```python
 from prismer import PrismerClient, RealtimeConfig
 
-client = PrismerClient(api_key=token, environment="testing")
+client = PrismerClient(api_key=token)
 config = RealtimeConfig(token=jwt_token)
 ws = client.im.realtime.connect_ws(config)
 
@@ -849,7 +882,6 @@ prismer config show
 Set a configuration value using dotted keys.
 
 ```bash
-prismer config set default.environment testing
 prismer config set default.base_url https://custom.api.com
 ```
 

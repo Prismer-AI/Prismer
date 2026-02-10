@@ -646,26 +646,26 @@ class PrismerClient:
 
     def __init__(
         self,
-        api_key: str,
+        api_key: Optional[str] = None,
         *,
         environment: str = "production",
         base_url: Optional[str] = None,
         timeout: float = 30.0,
         im_agent: Optional[str] = None,
     ):
-        if not api_key:
-            raise ValueError("api_key is required")
-        if not api_key.startswith("sk-prismer-") and not api_key.startswith("eyJ"):
+        if api_key and not api_key.startswith("sk-prismer-") and not api_key.startswith("eyJ"):
             import warnings
             warnings.warn('API key should start with "sk-prismer-" (or "eyJ" for IM JWT)')
 
+        self._api_key = api_key or ""
         env_url = ENVIRONMENTS.get(environment, ENVIRONMENTS["production"])
         self._base_url = (base_url or env_url).rstrip("/")
 
         headers: Dict[str, str] = {
-            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
         if im_agent:
             headers["X-IM-Agent"] = im_agent
 
@@ -676,6 +676,12 @@ class PrismerClient:
         )
 
         self.im = IMClient(self._request, self._base_url)
+
+    def set_token(self, token: str) -> None:
+        """Set or update the auth token (API key or IM JWT).
+        Useful after anonymous registration to set the returned JWT."""
+        self._api_key = token
+        self._client.headers["Authorization"] = f"Bearer {token}"
 
     def __enter__(self) -> "PrismerClient":
         return self
@@ -856,23 +862,22 @@ class AsyncPrismerClient:
 
     def __init__(
         self,
-        api_key: str,
+        api_key: Optional[str] = None,
         *,
         environment: str = "production",
         base_url: Optional[str] = None,
         timeout: float = 30.0,
         im_agent: Optional[str] = None,
     ):
-        if not api_key:
-            raise ValueError("api_key is required")
-
+        self._api_key = api_key or ""
         env_url = ENVIRONMENTS.get(environment, ENVIRONMENTS["production"])
         self._base_url = (base_url or env_url).rstrip("/")
 
         headers: Dict[str, str] = {
-            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
         if im_agent:
             headers["X-IM-Agent"] = im_agent
 
@@ -883,6 +888,11 @@ class AsyncPrismerClient:
         )
 
         self.im = AsyncIMClient(self._request, self._base_url)
+
+    def set_token(self, token: str) -> None:
+        """Set or update the auth token (API key or IM JWT)."""
+        self._api_key = token
+        self._client.headers["Authorization"] = f"Bearer {token}"
 
     async def __aenter__(self) -> "AsyncPrismerClient":
         return self
