@@ -1,5 +1,6 @@
 """Prismer Cloud SDK CLI — manage config, register agents, check status."""
 
+import json
 import os
 import sys
 from datetime import datetime, timezone
@@ -58,6 +59,34 @@ def _set_nested(cfg: Dict[str, Any], dotted_key: str, value: str) -> None:
     for part in parts[:-1]:
         d = d.setdefault(part, {})
     d[parts[-1]] = value
+
+
+def _get_im_client():
+    """Create a PrismerClient using the IM token from config."""
+    from .client import PrismerClient
+
+    cfg = _load_config()
+    token = cfg.get("auth", {}).get("im_token", "")
+    if not token:
+        click.echo("No IM token. Run 'prismer register' first.", err=True)
+        sys.exit(1)
+    env = cfg.get("default", {}).get("environment", "production")
+    base_url = cfg.get("default", {}).get("base_url", "")
+    return PrismerClient(token, environment=env, base_url=base_url)
+
+
+def _get_api_client():
+    """Create a PrismerClient using the API key from config."""
+    from .client import PrismerClient
+
+    cfg = _load_config()
+    api_key = cfg.get("default", {}).get("api_key", "")
+    if not api_key:
+        click.echo("No API key. Run 'prismer init <api-key>' first.", err=True)
+        sys.exit(1)
+    env = cfg.get("default", {}).get("environment", "production")
+    base_url = cfg.get("default", {}).get("base_url", "")
+    return PrismerClient(api_key, environment=env, base_url=base_url)
 
 
 # ============================================================================
@@ -293,6 +322,528 @@ def config_set(key: str, value: str):
     _set_nested(cfg, key, value)
     _save_config(cfg)
     click.echo(f"Set {key} = {value}")
+
+
+# ============================================================================
+# prismer im (subgroup)
+# ============================================================================
+
+@cli.group()
+def im():
+    """IM messaging commands."""
+    pass
+
+
+@im.command("me")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def im_me(as_json):
+    """Show current identity and stats."""
+    client = _get_im_client()
+    try:
+        res = client.im.account.me()
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        d = res.get("data", {})
+        if as_json:
+            click.echo(json.dumps(d, indent=2))
+            return
+        user = d.get("user", {})
+        card = d.get("agentCard", {})
+        stats = d.get("stats", {})
+        click.echo(f"Display Name: {user.get('displayName', '-')}")
+        click.echo(f"Username:     {user.get('username', '-')}")
+        click.echo(f"Role:         {user.get('role', '-')}")
+        click.echo(f"Agent Type:   {card.get('agentType', '-')}")
+        click.echo(f"Credits:      {stats.get('credits', '-')}")
+        click.echo(f"Messages:     {stats.get('totalMessages', '-')}")
+        click.echo(f"Unread:       {stats.get('unreadCount', '-')}")
+    finally:
+        client.close()
+
+
+@im.command("health")
+def im_health():
+    """Check IM service health."""
+    client = _get_im_client()
+    try:
+        res = client.im.health()
+        click.echo(f"IM Service: {'OK' if res.get('ok') else 'ERROR'}")
+        if not res.get("ok"):
+            click.echo(res.get("error"), err=True)
+            sys.exit(1)
+    finally:
+        client.close()
+
+
+@im.command("send")
+@click.argument("user_id")
+@click.argument("message")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def im_send(user_id, message, as_json):
+    """Send a direct message."""
+    client = _get_im_client()
+    try:
+        res = client.im.direct.send(user_id, message)
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        if as_json:
+            click.echo(json.dumps(res.get("data"), indent=2))
+            return
+        click.echo(f"Message sent (conversationId: {res.get('data', {}).get('conversationId')})")
+    finally:
+        client.close()
+
+
+@im.command("messages")
+@click.argument("user_id")
+@click.option("-n", "--limit", default=20, help="Max messages")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def im_messages(user_id, limit, as_json):
+    """View direct message history."""
+    client = _get_im_client()
+    try:
+        res = client.im.direct.get_messages(user_id, limit=limit)
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        msgs = res.get("data", [])
+        if as_json:
+            click.echo(json.dumps(msgs, indent=2))
+            return
+        if not msgs:
+            click.echo("No messages.")
+            return
+        for m in msgs:
+            ts = m.get("createdAt", "")
+            sender = m.get("sender", {}).get("username") or m.get("senderId", "?")
+            click.echo(f"[{ts}] {sender}: {m.get('content', '')}")
+    finally:
+        client.close()
+
+
+@im.command("discover")
+@click.option("--type", "agent_type", default=None, help="Filter by type")
+@click.option("--capability", default=None, help="Filter by capability")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def im_discover(agent_type, capability, as_json):
+    """Discover available agents."""
+    client = _get_im_client()
+    try:
+        kwargs = {}
+        if agent_type:
+            kwargs["type"] = agent_type
+        if capability:
+            kwargs["capability"] = capability
+        res = client.im.contacts.discover(**kwargs)
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        agents = res.get("data", [])
+        if as_json:
+            click.echo(json.dumps(agents, indent=2))
+            return
+        if not agents:
+            click.echo("No agents found.")
+            return
+        click.echo(f"{'ID':<14}{'Username':<20}{'Type':<14}Display Name")
+        for a in agents:
+            aid = a.get("id") or a.get("userId") or ""
+            click.echo(f"{aid:<14}{a.get('username', ''):<20}{a.get('agentType', a.get('role', '')):<14}{a.get('displayName', '')}")
+    finally:
+        client.close()
+
+
+@im.command("contacts")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def im_contacts(as_json):
+    """List contacts."""
+    client = _get_im_client()
+    try:
+        res = client.im.contacts.list()
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        contacts = res.get("data", [])
+        if as_json:
+            click.echo(json.dumps(contacts, indent=2))
+            return
+        if not contacts:
+            click.echo("No contacts.")
+            return
+        click.echo(f"{'ID':<14}{'Username':<20}Display Name")
+        for c in contacts:
+            cid = c.get("id") or c.get("userId") or ""
+            click.echo(f"{cid:<14}{c.get('username', ''):<20}{c.get('displayName', '')}")
+    finally:
+        client.close()
+
+
+# --- Groups sub-group ---
+@im.group("groups")
+def im_groups():
+    """Group management."""
+    pass
+
+
+@im_groups.command("list")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def groups_list(as_json):
+    """List groups."""
+    client = _get_im_client()
+    try:
+        res = client.im.groups.list()
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        groups = res.get("data", [])
+        if as_json:
+            click.echo(json.dumps(groups, indent=2))
+            return
+        if not groups:
+            click.echo("No groups.")
+            return
+        for g in groups:
+            gid = g.get("id") or g.get("groupId") or ""
+            click.echo(f"{gid}  {g.get('title', '')} ({g.get('memberCount', '?')} members)")
+    finally:
+        client.close()
+
+
+@im_groups.command("create")
+@click.argument("title")
+@click.option("-m", "--members", default="", help="Comma-separated member IDs")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def groups_create(title, members, as_json):
+    """Create a group."""
+    client = _get_im_client()
+    try:
+        member_list = [m.strip() for m in members.split(",") if m.strip()] if members else []
+        res = client.im.groups.create(title, member_list)
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        if as_json:
+            click.echo(json.dumps(res.get("data"), indent=2))
+            return
+        click.echo(f"Group created (groupId: {res.get('data', {}).get('groupId')})")
+    finally:
+        client.close()
+
+
+@im_groups.command("send")
+@click.argument("group_id")
+@click.argument("message")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def groups_send(group_id, message, as_json):
+    """Send message to group."""
+    client = _get_im_client()
+    try:
+        res = client.im.groups.send(group_id, message)
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        if as_json:
+            click.echo(json.dumps(res.get("data"), indent=2))
+            return
+        click.echo("Message sent to group.")
+    finally:
+        client.close()
+
+
+@im_groups.command("messages")
+@click.argument("group_id")
+@click.option("-n", "--limit", default=20, help="Max messages")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def groups_messages(group_id, limit, as_json):
+    """View group message history."""
+    client = _get_im_client()
+    try:
+        res = client.im.groups.get_messages(group_id, limit=limit)
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        msgs = res.get("data", [])
+        if as_json:
+            click.echo(json.dumps(msgs, indent=2))
+            return
+        if not msgs:
+            click.echo("No messages.")
+            return
+        for m in msgs:
+            ts = m.get("createdAt", "")
+            sender = m.get("sender", {}).get("username") or m.get("senderId", "?")
+            click.echo(f"[{ts}] {sender}: {m.get('content', '')}")
+    finally:
+        client.close()
+
+
+# --- Conversations sub-group ---
+@im.group("conversations")
+def im_conversations():
+    """Conversation management."""
+    pass
+
+
+@im_conversations.command("list")
+@click.option("--unread", is_flag=True, help="Show unread only")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def conversations_list(unread, as_json):
+    """List conversations."""
+    client = _get_im_client()
+    try:
+        kwargs = {}
+        if unread:
+            kwargs["with_unread"] = True
+            kwargs["unread_only"] = True
+        res = client.im.conversations.list(**kwargs)
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        convos = res.get("data", [])
+        if as_json:
+            click.echo(json.dumps(convos, indent=2))
+            return
+        if not convos:
+            click.echo("No conversations.")
+            return
+        for c in convos:
+            cid = c.get("id") or c.get("conversationId") or ""
+            unread_str = f" ({c.get('unreadCount', 0)} unread)" if c.get("unreadCount") else ""
+            click.echo(f"{cid}  {c.get('type', '')}  {c.get('title') or c.get('participantName', '')}{unread_str}")
+    finally:
+        client.close()
+
+
+@im_conversations.command("read")
+@click.argument("conversation_id")
+def conversations_read(conversation_id):
+    """Mark conversation as read."""
+    client = _get_im_client()
+    try:
+        res = client.im.conversations.mark_as_read(conversation_id)
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        click.echo("Marked as read.")
+    finally:
+        client.close()
+
+
+@im.command("credits")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def im_credits(as_json):
+    """Show credits balance."""
+    client = _get_im_client()
+    try:
+        res = client.im.credits.get()
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        if as_json:
+            click.echo(json.dumps(res.get("data"), indent=2))
+            return
+        click.echo(f"Balance: {res.get('data', {}).get('balance', '-')}")
+    finally:
+        client.close()
+
+
+@im.command("transactions")
+@click.option("-n", "--limit", default=20, help="Max transactions")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def im_transactions(limit, as_json):
+    """Transaction history."""
+    client = _get_im_client()
+    try:
+        res = client.im.credits.transactions(limit=limit)
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        txns = res.get("data", [])
+        if as_json:
+            click.echo(json.dumps(txns, indent=2))
+            return
+        if not txns:
+            click.echo("No transactions.")
+            return
+        for t in txns:
+            click.echo(f"{t.get('createdAt', '')}  {t.get('type', '')}  {t.get('amount', '')}  {t.get('description', '')}")
+    finally:
+        client.close()
+
+
+# ============================================================================
+# prismer context (subgroup)
+# ============================================================================
+
+@cli.group("context")
+def context():
+    """Context API commands."""
+    pass
+
+
+@context.command("load")
+@click.argument("url")
+@click.option("-f", "--format", "fmt", default="hqcc", help="Return format: hqcc, raw, both")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def context_load(url, fmt, as_json):
+    """Load URL content."""
+    client = _get_api_client()
+    try:
+        return_config = {"format": fmt}
+        res = client.load(url, return_config=return_config)
+        d = res.model_dump(by_alias=True, exclude_none=True)
+        if as_json:
+            click.echo(json.dumps(d, indent=2, default=str))
+            return
+        if not res.success:
+            msg = res.error.message if res.error else "Load failed"
+            click.echo(f"Error: {msg}", err=True)
+            sys.exit(1)
+        r = res.result
+        click.echo(f"URL:     {r.url if r else url}")
+        click.echo(f"Status:  {'cached' if r and r.cached else 'loaded'}")
+        if r and r.hqcc:
+            click.echo(f"\n--- HQCC ---\n{r.hqcc[:2000]}")
+        if r and r.raw:
+            click.echo(f"\n--- Raw ---\n{r.raw[:2000]}")
+    finally:
+        client.close()
+
+
+@context.command("search")
+@click.argument("query")
+@click.option("-k", "--top-k", default=5, help="Number of results")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def context_search(query, top_k, as_json):
+    """Search cached content."""
+    client = _get_api_client()
+    try:
+        res = client.search(query, top_k=top_k)
+        d = res.model_dump(by_alias=True, exclude_none=True)
+        if as_json:
+            click.echo(json.dumps(d, indent=2, default=str))
+            return
+        if not res.success:
+            msg = res.error.message if res.error else "Search failed"
+            click.echo(f"Error: {msg}", err=True)
+            sys.exit(1)
+        results = res.results or []
+        if not results:
+            click.echo("No results.")
+            return
+        for i, r in enumerate(results, 1):
+            score = r.ranking.score if r.ranking else "-"
+            click.echo(f"{i}. {r.url}  score: {score}")
+            if r.hqcc:
+                click.echo(f"   {r.hqcc[:200]}")
+    finally:
+        client.close()
+
+
+@context.command("save")
+@click.argument("url")
+@click.argument("hqcc")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def context_save(url, hqcc, as_json):
+    """Save content to cache."""
+    client = _get_api_client()
+    try:
+        res = client.save(url=url, hqcc=hqcc)
+        d = res.model_dump(by_alias=True, exclude_none=True)
+        if as_json:
+            click.echo(json.dumps(d, indent=2, default=str))
+            return
+        if not res.success:
+            msg = res.error.message if res.error else "Save failed"
+            click.echo(f"Error: {msg}", err=True)
+            sys.exit(1)
+        click.echo("Content saved.")
+    finally:
+        client.close()
+
+
+# ============================================================================
+# prismer parse (subgroup)
+# ============================================================================
+
+@cli.group("parse")
+def parse_cmd():
+    """Document parsing commands."""
+    pass
+
+
+@parse_cmd.command("run")
+@click.argument("url")
+@click.option("-m", "--mode", default="fast", help="Parse mode: fast, hires, auto")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def parse_run(url, mode, as_json):
+    """Parse a document."""
+    client = _get_api_client()
+    try:
+        res = client.parse_pdf(url, mode=mode)
+        d = res.model_dump(by_alias=True, exclude_none=True)
+        if as_json:
+            click.echo(json.dumps(d, indent=2, default=str))
+            return
+        if not res.success:
+            msg = res.error.message if res.error else "Parse failed"
+            click.echo(f"Error: {msg}", err=True)
+            sys.exit(1)
+        if res.task_id:
+            click.echo(f"Task ID: {res.task_id}")
+            click.echo(f"Status:  {res.status or 'processing'}")
+            click.echo(f"\nCheck progress: prismer parse status {res.task_id}")
+        elif res.document:
+            click.echo("Status: complete")
+            content = res.document.markdown or res.document.text or ""
+            click.echo(content[:5000])
+    finally:
+        client.close()
+
+
+@parse_cmd.command("status")
+@click.argument("task_id")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def parse_status(task_id, as_json):
+    """Check parse task status."""
+    client = _get_api_client()
+    try:
+        res = client.parse_status(task_id)
+        d = res.model_dump(by_alias=True, exclude_none=True)
+        if as_json:
+            click.echo(json.dumps(d, indent=2, default=str))
+            return
+        click.echo(f"Task:   {task_id}")
+        click.echo(f"Status: {res.status or ('complete' if res.success else 'unknown')}")
+    finally:
+        client.close()
+
+
+@parse_cmd.command("result")
+@click.argument("task_id")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def parse_result(task_id, as_json):
+    """Get parse result."""
+    client = _get_api_client()
+    try:
+        res = client.parse_result(task_id)
+        d = res.model_dump(by_alias=True, exclude_none=True)
+        if as_json:
+            click.echo(json.dumps(d, indent=2, default=str))
+            return
+        if not res.success:
+            msg = res.error.message if res.error else "Not ready"
+            click.echo(f"Error: {msg}", err=True)
+            sys.exit(1)
+        if res.document:
+            content = res.document.markdown or res.document.text or ""
+            click.echo(content)
+        else:
+            click.echo(json.dumps(d, indent=2, default=str))
+    finally:
+        client.close()
 
 
 # ============================================================================

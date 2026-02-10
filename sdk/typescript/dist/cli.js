@@ -838,6 +838,13 @@ var PrismerClient = class {
 };
 
 // src/cli.ts
+var cliVersion = "1.3.3";
+try {
+  const pkgPath = path.join(__dirname, "..", "package.json");
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+  cliVersion = pkg.version || cliVersion;
+} catch {
+}
 var CONFIG_DIR = path.join(os.homedir(), ".prismer");
 var CONFIG_PATH = path.join(CONFIG_DIR, "config.toml");
 function ensureConfigDir() {
@@ -869,8 +876,30 @@ function setNestedValue(obj, dotPath, value) {
   }
   current[parts[parts.length - 1]] = value;
 }
+function getIMClient() {
+  const cfg = readConfig();
+  const token = cfg?.auth?.im_token;
+  if (!token) {
+    console.error('No IM token. Run "prismer register" first.');
+    process.exit(1);
+  }
+  const env = cfg?.default?.environment || "production";
+  const baseUrl = cfg?.default?.base_url || "";
+  return new PrismerClient({ apiKey: token, environment: env, ...baseUrl ? { baseUrl } : {} });
+}
+function getAPIClient() {
+  const cfg = readConfig();
+  const apiKey = cfg?.default?.api_key;
+  if (!apiKey) {
+    console.error('No API key. Run "prismer init <api-key>" first.');
+    process.exit(1);
+  }
+  const env = cfg?.default?.environment || "production";
+  const baseUrl = cfg?.default?.base_url || "";
+  return new PrismerClient({ apiKey, environment: env, ...baseUrl ? { baseUrl } : {} });
+}
 var program = new import_commander.Command();
-program.name("prismer").description("Prismer Cloud SDK CLI").version("0.1.0");
+program.name("prismer").description("Prismer Cloud SDK CLI").version(cliVersion);
 program.command("init <api-key>").description("Store API key in ~/.prismer/config.toml").action((apiKey) => {
   const config = readConfig();
   if (!config.default) {
@@ -1012,5 +1041,362 @@ configCmd.command("set <key> <value>").description("Set a config value (e.g., pr
   setNestedValue(config, key, value);
   writeConfig(config);
   console.log(`Set ${key} = ${value}`);
+});
+var im = program.command("im").description("IM messaging commands");
+im.command("me").description("Show current identity and stats").option("--json", "JSON output").action(async (opts) => {
+  const client = getIMClient();
+  const res = await client.im.account.me();
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  const d = res.data;
+  if (opts.json) {
+    console.log(JSON.stringify(d, null, 2));
+    return;
+  }
+  console.log(`Display Name: ${d?.user?.displayName || "-"}`);
+  console.log(`Username:     ${d?.user?.username || "-"}`);
+  console.log(`Role:         ${d?.user?.role || "-"}`);
+  console.log(`Agent Type:   ${d?.agentCard?.agentType || "-"}`);
+  console.log(`Credits:      ${d?.credits?.balance ?? "-"}`);
+  console.log(`Messages:     ${d?.stats?.messagesSent ?? "-"}`);
+  console.log(`Unread:       ${d?.stats?.unreadCount ?? "-"}`);
+});
+im.command("health").description("Check IM service health").action(async () => {
+  const client = getIMClient();
+  const res = await client.im.health();
+  console.log(`IM Service: ${res.ok ? "OK" : "ERROR"}`);
+  if (!res.ok) {
+    console.error(res.error);
+    process.exit(1);
+  }
+});
+im.command("send").description("Send a direct message").argument("<user-id>", "Target user ID").argument("<message>", "Message content").option("--json", "JSON output").action(async (userId, message, opts) => {
+  const client = getIMClient();
+  const res = await client.im.direct.send(userId, message);
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  if (opts.json) {
+    console.log(JSON.stringify(res.data, null, 2));
+    return;
+  }
+  console.log(`Message sent (conversationId: ${res.data?.conversationId})`);
+});
+im.command("messages").description("View direct message history").argument("<user-id>", "Target user ID").option("-n, --limit <n>", "Max messages", "20").option("--json", "JSON output").action(async (userId, opts) => {
+  const client = getIMClient();
+  const res = await client.im.direct.getMessages(userId, { limit: parseInt(opts.limit) });
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  const msgs = res.data || [];
+  if (opts.json) {
+    console.log(JSON.stringify(msgs, null, 2));
+    return;
+  }
+  if (msgs.length === 0) {
+    console.log("No messages.");
+    return;
+  }
+  for (const m of msgs) {
+    const ts = m.createdAt ? new Date(m.createdAt).toLocaleString() : "";
+    console.log(`[${ts}] ${m.senderId || "?"}: ${m.content}`);
+  }
+});
+im.command("discover").description("Discover available agents").option("--type <type>", "Filter by type").option("--capability <cap>", "Filter by capability").option("--json", "JSON output").action(async (opts) => {
+  const client = getIMClient();
+  const discoverOpts = {};
+  if (opts.type) discoverOpts.type = opts.type;
+  if (opts.capability) discoverOpts.capability = opts.capability;
+  const res = await client.im.contacts.discover(discoverOpts);
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  const agents = res.data || [];
+  if (opts.json) {
+    console.log(JSON.stringify(agents, null, 2));
+    return;
+  }
+  if (agents.length === 0) {
+    console.log("No agents found.");
+    return;
+  }
+  console.log("Username".padEnd(20) + "Type".padEnd(14) + "Status".padEnd(10) + "Display Name");
+  for (const a of agents) {
+    console.log(`${(a.username || "").padEnd(20)}${(a.agentType || "").padEnd(14)}${(a.status || "").padEnd(10)}${a.displayName || ""}`);
+  }
+});
+im.command("contacts").description("List contacts").option("--json", "JSON output").action(async (opts) => {
+  const client = getIMClient();
+  const res = await client.im.contacts.list();
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  const contacts = res.data || [];
+  if (opts.json) {
+    console.log(JSON.stringify(contacts, null, 2));
+    return;
+  }
+  if (contacts.length === 0) {
+    console.log("No contacts.");
+    return;
+  }
+  console.log("Username".padEnd(20) + "Role".padEnd(10) + "Unread".padEnd(8) + "Display Name");
+  for (const c of contacts) {
+    console.log(`${(c.username || "").padEnd(20)}${(c.role || "").padEnd(10)}${String(c.unreadCount ?? 0).padEnd(8)}${c.displayName || ""}`);
+  }
+});
+var groups = im.command("groups").description("Group management");
+groups.command("list").description("List groups").option("--json", "JSON output").action(async (opts) => {
+  const client = getIMClient();
+  const res = await client.im.groups.list();
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  const list = res.data || [];
+  if (opts.json) {
+    console.log(JSON.stringify(list, null, 2));
+    return;
+  }
+  if (list.length === 0) {
+    console.log("No groups.");
+    return;
+  }
+  for (const g of list) {
+    console.log(`${g.groupId || ""}  ${g.title || ""} (${g.members?.length || "?"} members)`);
+  }
+});
+groups.command("create").description("Create a group").argument("<title>", "Group title").option("-m, --members <ids>", "Comma-separated member IDs").option("--json", "JSON output").action(async (title, opts) => {
+  const client = getIMClient();
+  const members = opts.members ? opts.members.split(",").map((s) => s.trim()) : [];
+  const res = await client.im.groups.create({ title, members });
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  if (opts.json) {
+    console.log(JSON.stringify(res.data, null, 2));
+    return;
+  }
+  console.log(`Group created (groupId: ${res.data?.groupId})`);
+});
+groups.command("send").description("Send message to group").argument("<group-id>", "Group ID").argument("<message>", "Message content").option("--json", "JSON output").action(async (groupId, message, opts) => {
+  const client = getIMClient();
+  const res = await client.im.groups.send(groupId, message);
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  if (opts.json) {
+    console.log(JSON.stringify(res.data, null, 2));
+    return;
+  }
+  console.log("Message sent to group.");
+});
+groups.command("messages").description("View group message history").argument("<group-id>", "Group ID").option("-n, --limit <n>", "Max messages", "20").option("--json", "JSON output").action(async (groupId, opts) => {
+  const client = getIMClient();
+  const res = await client.im.groups.getMessages(groupId, { limit: parseInt(opts.limit) });
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  const msgs = res.data || [];
+  if (opts.json) {
+    console.log(JSON.stringify(msgs, null, 2));
+    return;
+  }
+  if (msgs.length === 0) {
+    console.log("No messages.");
+    return;
+  }
+  for (const m of msgs) {
+    const ts = m.createdAt ? new Date(m.createdAt).toLocaleString() : "";
+    console.log(`[${ts}] ${m.senderId || "?"}: ${m.content}`);
+  }
+});
+var convos = im.command("conversations").description("Conversation management");
+convos.command("list").description("List conversations").option("--unread", "Show unread only").option("--json", "JSON output").action(async (opts) => {
+  const client = getIMClient();
+  const listOpts = {};
+  if (opts.unread) {
+    listOpts.withUnread = true;
+    listOpts.unreadOnly = true;
+  }
+  const res = await client.im.conversations.list(listOpts);
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  const list = res.data || [];
+  if (opts.json) {
+    console.log(JSON.stringify(list, null, 2));
+    return;
+  }
+  if (list.length === 0) {
+    console.log("No conversations.");
+    return;
+  }
+  for (const c of list) {
+    const unread = c.unreadCount ? ` (${c.unreadCount} unread)` : "";
+    console.log(`${c.id || ""}  ${c.type || ""}  ${c.title || ""}${unread}`);
+  }
+});
+convos.command("read").description("Mark conversation as read").argument("<conversation-id>", "Conversation ID").action(async (convId) => {
+  const client = getIMClient();
+  const res = await client.im.conversations.markAsRead(convId);
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  console.log("Marked as read.");
+});
+im.command("credits").description("Show credits balance").option("--json", "JSON output").action(async (opts) => {
+  const client = getIMClient();
+  const res = await client.im.credits.get();
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  if (opts.json) {
+    console.log(JSON.stringify(res.data, null, 2));
+    return;
+  }
+  console.log(`Balance: ${res.data?.balance ?? "-"}`);
+});
+im.command("transactions").description("Transaction history").option("-n, --limit <n>", "Max transactions", "20").option("--json", "JSON output").action(async (opts) => {
+  const client = getIMClient();
+  const res = await client.im.credits.transactions({ limit: parseInt(opts.limit) });
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  const txns = res.data || [];
+  if (opts.json) {
+    console.log(JSON.stringify(txns, null, 2));
+    return;
+  }
+  if (txns.length === 0) {
+    console.log("No transactions.");
+    return;
+  }
+  for (const t of txns) {
+    console.log(`${t.createdAt || ""}  ${t.type || ""}  ${t.amount ?? ""}  ${t.description || ""}`);
+  }
+});
+var ctx = program.command("context").description("Context API commands");
+ctx.command("load").description("Load URL content").argument("<url>", "URL to load").option("-f, --format <fmt>", "Return format: hqcc, raw, both", "hqcc").option("--json", "JSON output").action(async (url, opts) => {
+  const client = getAPIClient();
+  const loadOpts = {};
+  if (opts.format) loadOpts.return = { format: opts.format };
+  const res = await client.load(url, loadOpts);
+  if (opts.json) {
+    console.log(JSON.stringify(res, null, 2));
+    return;
+  }
+  if (!res.success) {
+    console.error("Error:", res.error?.message || "Load failed");
+    process.exit(1);
+  }
+  const r = res.result;
+  console.log(`URL:     ${r?.url || url}`);
+  console.log(`Status:  ${r?.cached ? "cached" : "loaded"}`);
+  if (r?.hqcc) {
+    console.log(`
+--- HQCC ---
+${r.hqcc.substring(0, 2e3)}`);
+  }
+  if (r?.raw) {
+    console.log(`
+--- Raw ---
+${r.raw.substring(0, 2e3)}`);
+  }
+});
+ctx.command("search").description("Search cached content").argument("<query>", "Search query").option("-k, --top-k <n>", "Number of results", "5").option("--json", "JSON output").action(async (query, opts) => {
+  const client = getAPIClient();
+  const res = await client.search(query, { topK: parseInt(opts.topK) });
+  if (opts.json) {
+    console.log(JSON.stringify(res, null, 2));
+    return;
+  }
+  if (!res.success) {
+    console.error("Error:", res.error?.message || "Search failed");
+    process.exit(1);
+  }
+  const results = res.results || [];
+  if (results.length === 0) {
+    console.log("No results.");
+    return;
+  }
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    console.log(`${i + 1}. ${r.url || "(no url)"}  score: ${r.ranking?.score ?? "-"}`);
+    if (r.hqcc) console.log(`   ${r.hqcc.substring(0, 200)}`);
+  }
+});
+ctx.command("save").description("Save content to cache").argument("<url>", "URL key").argument("<hqcc>", "HQCC content").option("--json", "JSON output").action(async (url, hqcc, opts) => {
+  const client = getAPIClient();
+  const res = await client.save({ url, hqcc });
+  if (opts.json) {
+    console.log(JSON.stringify(res, null, 2));
+    return;
+  }
+  if (!res.success) {
+    console.error("Error:", res.error?.message || "Save failed");
+    process.exit(1);
+  }
+  console.log("Content saved.");
+});
+var parse2 = program.command("parse").description("Document parsing commands");
+parse2.command("run").description("Parse a document").argument("<url>", "Document URL").option("-m, --mode <mode>", "Parse mode: fast, hires, auto", "fast").option("--json", "JSON output").action(async (url, opts) => {
+  const client = getAPIClient();
+  const res = await client.parsePdf(url, opts.mode);
+  if (opts.json) {
+    console.log(JSON.stringify(res, null, 2));
+    return;
+  }
+  if (!res.success) {
+    console.error("Error:", res.error?.message || "Parse failed");
+    process.exit(1);
+  }
+  if (res.taskId) {
+    console.log(`Task ID: ${res.taskId}`);
+    console.log(`Status:  ${res.status || "processing"}`);
+    console.log(`
+Check progress: prismer parse status ${res.taskId}`);
+  } else if (res.document) {
+    console.log(`Status: complete`);
+    const content = res.document.markdown || res.document.text || JSON.stringify(res.document, null, 2);
+    console.log(content.substring(0, 5e3));
+  }
+});
+parse2.command("status").description("Check parse task status").argument("<task-id>", "Task ID").option("--json", "JSON output").action(async (taskId, opts) => {
+  const client = getAPIClient();
+  const res = await client.parseStatus(taskId);
+  if (opts.json) {
+    console.log(JSON.stringify(res, null, 2));
+    return;
+  }
+  console.log(`Task:   ${taskId}`);
+  console.log(`Status: ${res.status || (res.success ? "complete" : "unknown")}`);
+});
+parse2.command("result").description("Get parse result").argument("<task-id>", "Task ID").option("--json", "JSON output").action(async (taskId, opts) => {
+  const client = getAPIClient();
+  const res = await client.parseResult(taskId);
+  if (opts.json) {
+    console.log(JSON.stringify(res, null, 2));
+    return;
+  }
+  if (!res.success) {
+    console.error("Error:", res.error?.message || "Not ready");
+    process.exit(1);
+  }
+  const content = res.document?.markdown || res.document?.text || JSON.stringify(res.document, null, 2);
+  console.log(content);
 });
 program.parse(process.argv);

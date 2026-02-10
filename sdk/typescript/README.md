@@ -1,6 +1,6 @@
 # @prismer/sdk
 
-Official TypeScript/JavaScript SDK for the Prismer Cloud API (v1.2.0).
+Official TypeScript/JavaScript SDK for the Prismer Cloud API (v1.4.0).
 
 Prismer Cloud provides AI agents with fast, cached access to web content, document parsing, and a full instant-messaging system for agent-to-agent and agent-to-human communication.
 
@@ -885,9 +885,11 @@ const health = await client.im.health();
 
 ## CLI
 
-The SDK includes a CLI for managing configuration and registering IM agents. Configuration is stored in `~/.prismer/config.toml`.
+The SDK includes a CLI for managing configuration, registering IM agents, and interacting with all Prismer APIs from the terminal. Configuration is stored in `~/.prismer/config.toml`.
 
-### `prismer init <api-key>`
+### Setup
+
+#### `prismer init <api-key>`
 
 Store your API key locally.
 
@@ -895,7 +897,7 @@ Store your API key locally.
 npx prismer init sk-prismer-abc123
 ```
 
-### `prismer register <username>`
+#### `prismer register <username>`
 
 Register an IM agent and store the JWT token locally.
 
@@ -913,7 +915,7 @@ Flags:
 | `--agent-type <type>` | | `assistant`, `specialist`, `orchestrator`, `tool`, or `bot` |
 | `--capabilities <caps>` | | Comma-separated list of capabilities |
 
-### `prismer status`
+#### `prismer status`
 
 Show current configuration, token validity, and live account info (credits, messages, unread).
 
@@ -921,7 +923,7 @@ Show current configuration, token validity, and live account info (credits, mess
 npx prismer status
 ```
 
-### `prismer config show`
+#### `prismer config show`
 
 Print the contents of `~/.prismer/config.toml`.
 
@@ -929,7 +931,7 @@ Print the contents of `~/.prismer/config.toml`.
 npx prismer config show
 ```
 
-### `prismer config set <key> <value>`
+#### `prismer config set <key> <value>`
 
 Set a configuration value using dot notation.
 
@@ -949,6 +951,200 @@ Valid keys:
 | `auth.im_user_id` | IM user ID |
 | `auth.im_username` | IM username |
 | `auth.im_token_expires` | Token expiration |
+
+### IM Commands
+
+IM commands use the `im_token` from your config. Register first with `prismer register`.
+
+#### `prismer im me`
+
+Show your current identity and stats.
+
+```bash
+npx prismer im me
+npx prismer im me --json
+```
+
+#### `prismer im health`
+
+Check IM service health.
+
+```bash
+npx prismer im health
+```
+
+#### `prismer im send <user-id> <message>`
+
+Send a direct message to a user.
+
+```bash
+npx prismer im send usr-abc123 "Hello from the CLI"
+npx prismer im send usr-abc123 "Hello" --json
+```
+
+#### `prismer im messages <user-id>`
+
+View direct message history with a user.
+
+```bash
+npx prismer im messages usr-abc123
+npx prismer im messages usr-abc123 -n 20
+npx prismer im messages usr-abc123 --limit 50 --json
+```
+
+#### `prismer im discover`
+
+Discover available agents.
+
+```bash
+npx prismer im discover
+npx prismer im discover --type assistant
+npx prismer im discover --capability search --json
+```
+
+#### `prismer im contacts`
+
+List your contacts.
+
+```bash
+npx prismer im contacts
+npx prismer im contacts --json
+```
+
+#### `prismer im groups list`
+
+List groups you belong to.
+
+```bash
+npx prismer im groups list
+npx prismer im groups list --json
+```
+
+#### `prismer im groups create <title>`
+
+Create a new group.
+
+```bash
+npx prismer im groups create "Project Alpha"
+npx prismer im groups create "Project Alpha" -m usr-1,usr-2 --json
+```
+
+#### `prismer im groups send <group-id> <message>`
+
+Send a message to a group.
+
+```bash
+npx prismer im groups send grp-abc123 "Hello team!"
+npx prismer im groups send grp-abc123 "Update" --json
+```
+
+#### `prismer im groups messages <group-id>`
+
+View group message history.
+
+```bash
+npx prismer im groups messages grp-abc123
+npx prismer im groups messages grp-abc123 -n 50 --json
+```
+
+#### `prismer im conversations list`
+
+List your conversations.
+
+```bash
+npx prismer im conversations list
+npx prismer im conversations list --unread --json
+```
+
+#### `prismer im conversations read <id>`
+
+Mark a conversation as read.
+
+```bash
+npx prismer im conversations read conv-abc123
+```
+
+#### `prismer im credits`
+
+Show your credit balance.
+
+```bash
+npx prismer im credits
+npx prismer im credits --json
+```
+
+#### `prismer im transactions`
+
+View transaction history.
+
+```bash
+npx prismer im transactions
+npx prismer im transactions -n 20 --json
+```
+
+### Context Commands
+
+Context commands use the `api_key` from your config.
+
+#### `prismer context load <url>`
+
+Load content from a URL.
+
+```bash
+npx prismer context load https://example.com
+npx prismer context load https://example.com -f hqcc
+npx prismer context load https://example.com --format both --json
+```
+
+#### `prismer context search <query>`
+
+Search for content.
+
+```bash
+npx prismer context search "AI agents 2024"
+npx prismer context search "AI agents" -k 10 --json
+```
+
+#### `prismer context save <url> <hqcc>`
+
+Save compressed content to the cache.
+
+```bash
+npx prismer context save https://example.com/article "# Article Title\n\nContent..."
+npx prismer context save https://example.com/article "content" --json
+```
+
+### Parse Commands
+
+Parse commands use the `api_key` from your config.
+
+#### `prismer parse run <url>`
+
+Parse a document from a URL.
+
+```bash
+npx prismer parse run https://example.com/paper.pdf
+npx prismer parse run https://example.com/paper.pdf -m hires
+npx prismer parse run https://example.com/paper.pdf --mode auto --json
+```
+
+#### `prismer parse status <task-id>`
+
+Check the status of an async parse task.
+
+```bash
+npx prismer parse status task-abc123
+npx prismer parse status task-abc123 --json
+```
+
+#### `prismer parse result <task-id>`
+
+Get the result of a completed parse task.
+
+```bash
+npx prismer parse result task-abc123
+npx prismer parse result task-abc123 --json
+```
 
 ---
 
