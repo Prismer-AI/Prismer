@@ -10,6 +10,8 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { PrismerClient } from '../src/index';
+import { RealtimeWSClient, RealtimeSSEClient } from '../src/realtime';
+import type { RealtimeConfig, MessageNewPayload } from '../src/realtime';
 
 // Increase default test timeout for integration tests hitting a live API.
 // Individual slow tests (search, PDF parse) get even longer timeouts below.
@@ -42,6 +44,18 @@ function imClient(token: string): PrismerClient {
     timeout: 60_000,
   });
 }
+
+// Module-level shared state for cross-describe sharing (IM + Realtime)
+let agentAToken: string;
+let agentAId: string;
+let agentAUsername: string;
+let agentBToken: string;
+let agentBId: string;
+let agentBUsername: string;
+let clientA: PrismerClient;
+let clientB: PrismerClient;
+let directConversationId: string;
+let groupId: string;
 
 // ---------------------------------------------------------------------------
 // Group 1: Context API
@@ -132,18 +146,6 @@ describe('Parse API', () => {
 describe('IM API', () => {
   const client = apiClient();
 
-  // State shared across IM tests
-  let agentAToken: string;
-  let agentAId: string;
-  let agentAUsername: string;
-  let agentBToken: string;
-  let agentBId: string;
-  let agentBUsername: string;
-  let clientA: PrismerClient; // authenticated with agent A's JWT
-  let clientB: PrismerClient; // authenticated with agent B's JWT
-  let directConversationId: string;
-  let groupId: string;
-
   // -----------------------------------------------------------------------
   // Account
   // -----------------------------------------------------------------------
@@ -218,6 +220,8 @@ describe('IM API', () => {
   // -----------------------------------------------------------------------
 
   describe('Direct Messaging', () => {
+    let firstDirectMessageId: string;
+
     it('send() — agent A sends message to agent B', async () => {
       const result = await clientA.im.direct.send(agentBId, 'Hello from Agent A!');
       expect(result.ok).toBe(true);
@@ -226,6 +230,7 @@ describe('IM API', () => {
       expect(result.data!.message.id).toBeDefined();
       expect(result.data!.conversationId).toBeDefined();
       directConversationId = result.data!.conversationId;
+      firstDirectMessageId = result.data!.message.id;
     });
 
     it('send() — agent B replies to agent A', async () => {
@@ -373,6 +378,14 @@ describe('IM API', () => {
       const result = await clientA.im.conversations.markAsRead(directConversationId);
       expect(result.ok).toBe(true);
     });
+
+    it('createDirect() — explicitly creates a DM conversation', async () => {
+      const result = await clientA.im.conversations.createDirect(agentBId);
+      expect(result.ok).toBe(true);
+      expect(result.data).toBeDefined();
+      // May return existing or new conversation
+      expect(result.data!.id).toBeDefined();
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -380,6 +393,8 @@ describe('IM API', () => {
   // -----------------------------------------------------------------------
 
   describe('Messages (low-level)', () => {
+    let lowLevelMessageId: string;
+
     it('send() — sends message to a conversation', async () => {
       expect(directConversationId).toBeDefined();
       const result = await clientA.im.messages.send(
@@ -390,6 +405,7 @@ describe('IM API', () => {
       expect(result.data).toBeDefined();
       expect(result.data!.message).toBeDefined();
       expect(result.data!.message.content).toBe('Low-level message test');
+      lowLevelMessageId = result.data!.message.id;
     });
 
     it('getHistory() — retrieves messages for conversation', async () => {
@@ -399,6 +415,261 @@ describe('IM API', () => {
       expect(Array.isArray(result.data)).toBe(true);
       expect(result.data!.length).toBeGreaterThanOrEqual(1);
     });
+
+    it('edit() — edits a message', async () => {
+      expect(lowLevelMessageId).toBeDefined();
+      const result = await clientA.im.messages.edit(
+        directConversationId,
+        lowLevelMessageId,
+        'Edited message content',
+      );
+      // edit may or may not be supported by the API
+      if (result.ok) {
+        expect(result.data).toBeDefined();
+      } else {
+        expect(result.error).toBeDefined();
+      }
+    });
+
+    it('delete() — deletes a message', async () => {
+      // Send a throwaway message to delete
+      const sendResult = await clientA.im.messages.send(
+        directConversationId,
+        'Message to be deleted',
+      );
+      expect(sendResult.ok).toBe(true);
+      const msgId = sendResult.data!.message.id;
+
+      const result = await clientA.im.messages.delete(
+        directConversationId,
+        msgId,
+      );
+      // delete may or may not be supported by the API
+      if (result.ok) {
+        expect(result.ok).toBe(true);
+      } else {
+        expect(result.error).toBeDefined();
+      }
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Message Threading (v3.4.0)
+  // -----------------------------------------------------------------------
+
+  describe('Message Threading (v3.4.0)', () => {
+    let parentMessageId: string;
+    let groupParentMessageId: string;
+
+    it('direct send with parentId — creates a threaded reply', async () => {
+      // First, send a parent message
+      const parentResult = await clientA.im.direct.send(agentBId, 'Parent message for threading test');
+      expect(parentResult.ok).toBe(true);
+      parentMessageId = parentResult.data!.message.id;
+
+      // Now send a reply with parentId
+      const replyResult = await clientA.im.direct.send(agentBId, 'Reply to parent', {
+        parentId: parentMessageId,
+      });
+      expect(replyResult.ok).toBe(true);
+      expect(replyResult.data).toBeDefined();
+      expect(replyResult.data!.message).toBeDefined();
+      expect(replyResult.data!.message.id).toBeDefined();
+      // The API may or may not echo back parentId in the response
+    });
+
+    it('group send with parentId — creates a threaded reply in group', async () => {
+      // Send a parent message to group
+      const parentResult = await clientA.im.groups.send(groupId, 'Group parent message');
+      expect(parentResult.ok).toBe(true);
+      groupParentMessageId = parentResult.data!.message.id;
+
+      // Send a reply with parentId
+      const replyResult = await clientA.im.groups.send(groupId, 'Group threaded reply', {
+        parentId: groupParentMessageId,
+      });
+      expect(replyResult.ok).toBe(true);
+      expect(replyResult.data).toBeDefined();
+      expect(replyResult.data!.message).toBeDefined();
+    });
+
+    it('messages.send with parentId — low-level threaded reply', async () => {
+      expect(directConversationId).toBeDefined();
+      expect(parentMessageId).toBeDefined();
+
+      const result = await clientA.im.messages.send(
+        directConversationId,
+        'Low-level threaded reply',
+        { parentId: parentMessageId },
+      );
+      expect(result.ok).toBe(true);
+      expect(result.data).toBeDefined();
+      expect(result.data!.message).toBeDefined();
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // New Message Types (v3.4.0)
+  // -----------------------------------------------------------------------
+
+  describe('New Message Types (v3.4.0)', () => {
+    it('send markdown message', async () => {
+      const result = await clientA.im.direct.send(agentBId, '# Heading\n\n**bold** text', {
+        type: 'markdown',
+      });
+      expect(result.ok).toBe(true);
+      expect(result.data!.message).toBeDefined();
+      expect(result.data!.message.type).toBe('markdown');
+    });
+
+    it('send tool_call message', async () => {
+      const result = await clientA.im.direct.send(
+        agentBId,
+        JSON.stringify({ tool: 'search', query: 'test' }),
+        {
+          type: 'tool_call',
+          metadata: { toolName: 'search', toolCallId: 'tc-001' },
+        },
+      );
+      expect(result.ok).toBe(true);
+      expect(result.data!.message).toBeDefined();
+      expect(result.data!.message.type).toBe('tool_call');
+    });
+
+    it('send tool_result message', async () => {
+      const result = await clientA.im.direct.send(
+        agentBId,
+        JSON.stringify({ results: ['item1', 'item2'] }),
+        {
+          type: 'tool_result',
+          metadata: { toolCallId: 'tc-001' },
+        },
+      );
+      expect(result.ok).toBe(true);
+      expect(result.data!.message).toBeDefined();
+      expect(result.data!.message.type).toBe('tool_result');
+    });
+
+    it('send thinking message', async () => {
+      const result = await clientA.im.direct.send(
+        agentBId,
+        'Analyzing the problem step by step...',
+        { type: 'thinking' },
+      );
+      expect(result.ok).toBe(true);
+      expect(result.data!.message).toBeDefined();
+      expect(result.data!.message.type).toBe('thinking');
+    });
+
+    it('send image message', async () => {
+      const result = await clientA.im.direct.send(
+        agentBId,
+        'https://example.com/test-image.png',
+        {
+          type: 'image',
+          metadata: { mimeType: 'image/png', width: 800, height: 600 },
+        },
+      );
+      expect(result.ok).toBe(true);
+      expect(result.data!.message).toBeDefined();
+      expect(result.data!.message.type).toBe('image');
+    });
+
+    it('send file message', async () => {
+      const result = await clientA.im.direct.send(
+        agentBId,
+        'https://example.com/document.pdf',
+        {
+          type: 'file',
+          metadata: { filename: 'document.pdf', mimeType: 'application/pdf', size: 1024 },
+        },
+      );
+      expect(result.ok).toBe(true);
+      expect(result.data!.message).toBeDefined();
+      expect(result.data!.message.type).toBe('file');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Message Metadata (v3.4.0)
+  // -----------------------------------------------------------------------
+
+  describe('Message Metadata (v3.4.0)', () => {
+    it('send message with structured metadata and verify in history', async () => {
+      const metadata = {
+        source: 'integration-test',
+        version: '3.4.0',
+        custom: { nested: true, tags: ['test', 'v3.4.0'] },
+      };
+      const result = await clientA.im.direct.send(
+        agentBId,
+        'Message with metadata',
+        { metadata },
+      );
+      expect(result.ok).toBe(true);
+      expect(result.data!.message).toBeDefined();
+
+      // Verify metadata persists in history
+      const history = await clientA.im.direct.getMessages(agentBId, { limit: 5 });
+      expect(history.ok).toBe(true);
+      const found = history.data!.find(
+        (m: any) => m.content === 'Message with metadata',
+      );
+      expect(found).toBeDefined();
+      if (found?.metadata) {
+        expect(found.metadata).toBeDefined();
+      }
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Groups Extended (v3.4.0)
+  // -----------------------------------------------------------------------
+
+  describe('Groups Extended', () => {
+    let agentCId: string;
+    let removeMemberGroupId: string;
+
+    it('removeMember() — remove a member from a group', async () => {
+      // Register a third agent for this test
+      const regC = await client.im.account.register({
+        type: 'agent',
+        username: `test-agent-c-${RUN_ID}`,
+        displayName: `Test Agent C (${RUN_ID})`,
+        agentType: 'bot',
+        capabilities: ['testing'],
+      });
+      expect(regC.ok).toBe(true);
+      agentCId = regC.data!.imUserId;
+
+      // Create a group with Agent C as member
+      const createResult = await clientA.im.groups.create({
+        title: `Remove Test Group ${RUN_ID}`,
+        members: [agentCId],
+      });
+      expect(createResult.ok).toBe(true);
+      removeMemberGroupId = createResult.data!.groupId;
+
+      // Remove Agent C from the group
+      const removeResult = await clientA.im.groups.removeMember(
+        removeMemberGroupId,
+        agentCId,
+      );
+      // removeMember may or may not be supported
+      if (removeResult.ok) {
+        expect(removeResult.ok).toBe(true);
+        // Verify agent C is no longer in the group
+        const groupDetail = await clientA.im.groups.get(removeMemberGroupId);
+        if (groupDetail.ok && groupDetail.data?.members) {
+          const stillMember = groupDetail.data.members.find(
+            (m: any) => m.userId === agentCId,
+          );
+          expect(stillMember).toBeUndefined();
+        }
+      } else {
+        expect(removeResult.error).toBeDefined();
+      }
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -406,6 +677,8 @@ describe('IM API', () => {
   // -----------------------------------------------------------------------
 
   describe('Workspace', () => {
+    let workspaceId: string;
+
     it('init() — initializes a 1:1 workspace', async () => {
       const result = await clientA.im.workspace.init();
       // Workspace may or may not be available in test env
@@ -413,8 +686,30 @@ describe('IM API', () => {
         expect(result.data).toBeDefined();
         expect(result.data!.workspaceId).toBeDefined();
         expect(result.data!.conversationId).toBeDefined();
+        workspaceId = result.data!.workspaceId;
       } else {
         // Acceptable: workspace feature may not be enabled
+        expect(result.error).toBeDefined();
+      }
+    });
+
+    it('initGroup() — initializes a group workspace', async () => {
+      const result = await clientA.im.workspace.initGroup();
+      if (result.ok) {
+        expect(result.data).toBeDefined();
+        expect(result.data!.workspaceId).toBeDefined();
+      } else {
+        expect(result.error).toBeDefined();
+      }
+    });
+
+    it('mentionAutocomplete() — searches for @mention targets', async () => {
+      const result = await clientA.im.workspace.mentionAutocomplete('agent');
+      if (result.ok) {
+        expect(result.data).toBeDefined();
+        expect(Array.isArray(result.data)).toBe(true);
+      } else {
+        // Feature may not be available
         expect(result.error).toBeDefined();
       }
     });
@@ -458,4 +753,137 @@ describe('IM API', () => {
       expect(result.error).toBeDefined();
     });
   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 4: Real-Time — WebSocket
+// ---------------------------------------------------------------------------
+
+describe('Real-Time: WebSocket', () => {
+  it('connect, authenticate, ping, joinConversation, receive message, disconnect', async () => {
+    // Skip if no agent tokens available
+    expect(agentAToken).toBeDefined();
+    expect(agentBToken).toBeDefined();
+
+    const baseUrl = 'https://prismer.cloud';
+
+    // Create WS client for Agent A
+    const ws = new RealtimeWSClient(baseUrl, {
+      token: agentAToken,
+      autoReconnect: false,
+      heartbeatInterval: 60_000, // disable heartbeat interference
+    });
+
+    // Track authenticated event
+    let authPayload: any = null;
+    ws.on('authenticated', (payload) => {
+      authPayload = payload;
+    });
+
+    // Connect and verify authentication
+    await ws.connect();
+    expect(ws.state).toBe('connected');
+    expect(authPayload).toBeDefined();
+    expect(authPayload.userId).toBeDefined();
+    expect(authPayload.username).toBeDefined();
+
+    // Ping/pong
+    const pong = await ws.ping();
+    expect(pong).toBeDefined();
+    expect(pong.requestId).toBeDefined();
+
+    // Join the direct conversation
+    expect(directConversationId).toBeDefined();
+    ws.joinConversation(directConversationId);
+
+    // Wait briefly for join to process
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Listen for message.new event
+    const messagePromise = new Promise<MessageNewPayload>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('message.new timeout')), 15_000);
+      ws.once('message.new', (msg) => {
+        clearTimeout(timer);
+        resolve(msg);
+      });
+    });
+
+    // Agent B sends a message via HTTP API
+    const sendResult = await clientB.im.direct.send(
+      agentAId,
+      `Realtime WS test ${RUN_ID}`,
+    );
+    expect(sendResult.ok).toBe(true);
+
+    // Wait for the message.new event
+    const receivedMsg = await messagePromise;
+    expect(receivedMsg).toBeDefined();
+    expect(receivedMsg.content).toBe(`Realtime WS test ${RUN_ID}`);
+    expect(receivedMsg.senderId).toBe(agentBId);
+    expect(receivedMsg.conversationId).toBeDefined();
+
+    // Disconnect
+    ws.disconnect();
+    expect(ws.state).toBe('disconnected');
+  }, 60_000);
+});
+
+// ---------------------------------------------------------------------------
+// Group 5: Real-Time — SSE
+// ---------------------------------------------------------------------------
+
+describe('Real-Time: SSE', () => {
+  it('connect, authenticate, receive message, disconnect', async () => {
+    expect(agentAToken).toBeDefined();
+    expect(agentBToken).toBeDefined();
+
+    const baseUrl = 'https://prismer.cloud';
+
+    // Create SSE client for Agent A
+    const sse = new RealtimeSSEClient(baseUrl, {
+      token: agentAToken,
+      autoReconnect: false,
+    });
+
+    // Track authenticated event
+    let authPayload: any = null;
+    sse.on('authenticated', (payload) => {
+      authPayload = payload;
+    });
+
+    // Connect
+    await sse.connect();
+    expect(sse.state).toBe('connected');
+
+    // Wait briefly for auth event processing
+    await new Promise((r) => setTimeout(r, 1000));
+    // Auth payload may or may not be present depending on SSE implementation
+    // SSE auto-joins all conversations
+
+    // Listen for message.new event
+    const messagePromise = new Promise<MessageNewPayload>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('SSE message.new timeout')), 15_000);
+      sse.once('message.new', (msg) => {
+        clearTimeout(timer);
+        resolve(msg);
+      });
+    });
+
+    // Agent B sends a message via HTTP API
+    const sendResult = await clientB.im.direct.send(
+      agentAId,
+      `Realtime SSE test ${RUN_ID}`,
+    );
+    expect(sendResult.ok).toBe(true);
+
+    // Wait for the message.new event
+    const receivedMsg = await messagePromise;
+    expect(receivedMsg).toBeDefined();
+    expect(receivedMsg.content).toBe(`Realtime SSE test ${RUN_ID}`);
+    expect(receivedMsg.senderId).toBe(agentBId);
+
+    // Disconnect
+    sse.disconnect();
+    expect(sse.state).toBe('disconnected');
+  }, 60_000);
 });

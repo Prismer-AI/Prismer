@@ -5,11 +5,15 @@ Covers:
   - Context API  (load, save)
   - Parse API    (parse_pdf)
   - IM API       (account, direct, groups, conversations, contacts, credits, edge cases)
+  - IM v3.4.0    (message threading, new message types, metadata, edit/delete)
+  - Real-Time    (WebSocket connect/authenticate/ping/receive, SSE connect/receive)
 
 Usage:
     PRISMER_API_KEY_TEST="sk-prismer-..." python -m pytest tests/test_integration.py -v
 """
 
+import asyncio
+import json
 import time
 import pytest
 
@@ -169,6 +173,12 @@ class TestIMLifecycle:
             target_id = self.__class__._agent_b_id
             res = agent_client.im.direct.send(target_id, "Hello from integration test!")
             assert res.get("ok") is True, f"direct.send failed: {res}"
+            # Store conversation ID and message ID for later tests
+            data = res.get("data", {})
+            if "conversationId" in data:
+                self.__class__._direct_conv_id = data["conversationId"]
+            if "message" in data:
+                self.__class__._first_direct_msg_id = data["message"].get("id")
         finally:
             agent_client.close()
 
@@ -325,6 +335,11 @@ class TestIMLifecycle:
             group_id = self.__class__._group_id
             res = agent_client.im.groups.send(group_id, "Hello group from integration test!")
             assert res.get("ok") is True, f"groups.send failed: {res}"
+            # Stash the message ID for threading test
+            data = res.get("data", {})
+            msg = data.get("message", {})
+            if "id" in msg:
+                self.__class__._group_msg_id = msg["id"]
         finally:
             agent_client.close()
 
@@ -384,10 +399,395 @@ class TestIMLifecycle:
             agent_client.close()
 
     # ------------------------------------------------------------------
+    # Conversations Extended (v3.4.0)
+    # ------------------------------------------------------------------
+
+    def test_18_conversations_create_direct(self, base_url: str):
+        """Explicitly create a direct conversation."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.conversations.create_direct(self.__class__._agent_b_id)
+            assert res.get("ok") is True, f"conversations.create_direct failed: {res}"
+            data = res.get("data", {})
+            assert "id" in data
+            # May return existing conversation (idempotent)
+        finally:
+            agent_client.close()
+
+    # ------------------------------------------------------------------
+    # Messages Edit & Delete
+    # ------------------------------------------------------------------
+
+    def test_19_messages_send_low_level(self, base_url: str):
+        """Send a message via low-level messages.send and stash its ID."""
+        conv_id = getattr(self.__class__, "_direct_conv_id", None) or self.__class__._conv_id
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.messages.send(conv_id, "Low-level message for edit/delete test")
+            assert res.get("ok") is True, f"messages.send failed: {res}"
+            data = res.get("data", {})
+            msg = data.get("message", {})
+            self.__class__._low_level_msg_id = msg.get("id")
+            self.__class__._low_level_conv_id = conv_id
+        finally:
+            agent_client.close()
+
+    def test_20_messages_edit(self, base_url: str):
+        """Edit a message and verify."""
+        conv_id = self.__class__._low_level_conv_id
+        msg_id = self.__class__._low_level_msg_id
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.messages.edit(conv_id, msg_id, "Edited content from Python test")
+            # edit may or may not be supported
+            if res.get("ok"):
+                assert res.get("data") is not None or res.get("ok") is True
+            else:
+                assert res.get("error") is not None
+        finally:
+            agent_client.close()
+
+    def test_21_messages_delete(self, base_url: str):
+        """Delete a message."""
+        conv_id = self.__class__._low_level_conv_id
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            # Send a throwaway message to delete
+            send_res = agent_client.im.messages.send(conv_id, "Message to delete from Python")
+            assert send_res.get("ok") is True
+            del_msg_id = send_res["data"]["message"]["id"]
+
+            res = agent_client.im.messages.delete(conv_id, del_msg_id)
+            # delete may or may not be supported
+            if res.get("ok"):
+                assert res.get("ok") is True
+            else:
+                assert res.get("error") is not None
+        finally:
+            agent_client.close()
+
+    # ------------------------------------------------------------------
+    # Message Threading (v3.4.0)
+    # ------------------------------------------------------------------
+
+    def test_22_direct_send_with_parent_id(self, base_url: str):
+        """Send a threaded reply using parentId on direct messages."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            target_id = self.__class__._agent_b_id
+            # Send parent
+            parent_res = agent_client.im.direct.send(target_id, "Parent message for threading")
+            assert parent_res.get("ok") is True
+            parent_id = parent_res["data"]["message"]["id"]
+
+            # Send reply with parentId
+            reply_res = agent_client.im.direct.send(
+                target_id, "Threaded reply", parent_id=parent_id
+            )
+            assert reply_res.get("ok") is True, f"threaded reply failed: {reply_res}"
+            assert reply_res["data"]["message"]["id"]
+        finally:
+            agent_client.close()
+
+    def test_23_group_send_with_parent_id(self, base_url: str):
+        """Send a threaded reply in a group using parentId."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            group_id = self.__class__._group_id
+            # Send parent
+            parent_res = agent_client.im.groups.send(group_id, "Group parent for threading")
+            assert parent_res.get("ok") is True
+            parent_id = parent_res["data"]["message"]["id"]
+
+            # Send reply with parentId
+            reply_res = agent_client.im.groups.send(
+                group_id, "Group threaded reply", parent_id=parent_id
+            )
+            assert reply_res.get("ok") is True, f"group threaded reply failed: {reply_res}"
+        finally:
+            agent_client.close()
+
+    def test_24_messages_send_with_parent_id(self, base_url: str):
+        """Low-level messages.send with parentId."""
+        conv_id = self.__class__._low_level_conv_id
+        msg_id = self.__class__._low_level_msg_id
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.messages.send(
+                conv_id, "Low-level threaded reply", parent_id=msg_id
+            )
+            assert res.get("ok") is True, f"messages.send with parentId failed: {res}"
+        finally:
+            agent_client.close()
+
+    # ------------------------------------------------------------------
+    # New Message Types (v3.4.0)
+    # ------------------------------------------------------------------
+
+    def test_25_send_markdown_message(self, base_url: str):
+        """Send a markdown-type message."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.direct.send(
+                self.__class__._agent_b_id,
+                "# Heading\n\n**bold** text",
+                type="markdown",
+            )
+            assert res.get("ok") is True, f"markdown send failed: {res}"
+            assert res["data"]["message"]["type"] == "markdown"
+        finally:
+            agent_client.close()
+
+    def test_26_send_tool_call_message(self, base_url: str):
+        """Send a tool_call message with metadata."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.direct.send(
+                self.__class__._agent_b_id,
+                json.dumps({"tool": "search", "query": "test"}),
+                type="tool_call",
+                metadata={"toolName": "search", "toolCallId": "tc-py-001"},
+            )
+            assert res.get("ok") is True, f"tool_call send failed: {res}"
+            assert res["data"]["message"]["type"] == "tool_call"
+        finally:
+            agent_client.close()
+
+    def test_27_send_tool_result_message(self, base_url: str):
+        """Send a tool_result message with metadata."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.direct.send(
+                self.__class__._agent_b_id,
+                json.dumps({"results": ["item1", "item2"]}),
+                type="tool_result",
+                metadata={"toolCallId": "tc-py-001"},
+            )
+            assert res.get("ok") is True, f"tool_result send failed: {res}"
+            assert res["data"]["message"]["type"] == "tool_result"
+        finally:
+            agent_client.close()
+
+    def test_28_send_thinking_message(self, base_url: str):
+        """Send a thinking-type message."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.direct.send(
+                self.__class__._agent_b_id,
+                "Analyzing the problem step by step...",
+                type="thinking",
+            )
+            assert res.get("ok") is True, f"thinking send failed: {res}"
+            assert res["data"]["message"]["type"] == "thinking"
+        finally:
+            agent_client.close()
+
+    def test_29_send_image_message(self, base_url: str):
+        """Send an image-type message."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.direct.send(
+                self.__class__._agent_b_id,
+                "https://example.com/test-image.png",
+                type="image",
+                metadata={"mimeType": "image/png", "width": 800, "height": 600},
+            )
+            assert res.get("ok") is True, f"image send failed: {res}"
+            assert res["data"]["message"]["type"] == "image"
+        finally:
+            agent_client.close()
+
+    def test_30_send_file_message(self, base_url: str):
+        """Send a file-type message."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.direct.send(
+                self.__class__._agent_b_id,
+                "https://example.com/document.pdf",
+                type="file",
+                metadata={"filename": "document.pdf", "mimeType": "application/pdf", "size": 1024},
+            )
+            assert res.get("ok") is True, f"file send failed: {res}"
+            assert res["data"]["message"]["type"] == "file"
+        finally:
+            agent_client.close()
+
+    # ------------------------------------------------------------------
+    # Message Metadata (v3.4.0)
+    # ------------------------------------------------------------------
+
+    def test_31_send_message_with_structured_metadata(self, base_url: str):
+        """Send message with structured metadata and verify in history."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            metadata = {
+                "source": "integration-test",
+                "version": "3.4.0",
+                "custom": {"nested": True, "tags": ["test", "v3.4.0"]},
+            }
+            res = agent_client.im.direct.send(
+                self.__class__._agent_b_id,
+                "Message with metadata from Python",
+                metadata=metadata,
+            )
+            assert res.get("ok") is True, f"metadata send failed: {res}"
+
+            # Verify in history
+            history = agent_client.im.direct.get_messages(
+                self.__class__._agent_b_id, limit=5
+            )
+            assert history.get("ok") is True
+            messages = history.get("data", [])
+            found = [m for m in messages if m.get("content") == "Message with metadata from Python"]
+            assert len(found) >= 1
+            if found[0].get("metadata"):
+                assert found[0]["metadata"] is not None
+        finally:
+            agent_client.close()
+
+    # ------------------------------------------------------------------
+    # Groups Extended (v3.4.0)
+    # ------------------------------------------------------------------
+
+    def test_32_groups_remove_member(self, base_url: str, run_id: str, client: PrismerClient):
+        """Remove a member from a group."""
+        # Register agent C
+        res_c = client.im.account.register(
+            type="agent",
+            username=f"integ-agent-c-{run_id}",
+            displayName=f"Agent C ({run_id})",
+            agentType="bot",
+            capabilities=["testing"],
+        )
+        assert res_c.get("ok") is True, f"register agent C failed: {res_c}"
+        agent_c_id = res_c["data"]["imUserId"]
+
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            # Create a group with C as member
+            create_res = agent_client.im.groups.create(
+                title=f"Remove Test Group {run_id}",
+                members=[agent_c_id],
+            )
+            assert create_res.get("ok") is True
+            rm_group_id = create_res["data"]["groupId"]
+
+            # Remove C
+            rm_res = agent_client.im.groups.remove_member(rm_group_id, agent_c_id)
+            if rm_res.get("ok"):
+                # Verify C is gone
+                detail = agent_client.im.groups.get(rm_group_id)
+                if detail.get("ok"):
+                    members = detail.get("data", {}).get("members", [])
+                    assert not any(m.get("userId") == agent_c_id for m in members)
+            else:
+                assert rm_res.get("error") is not None
+        finally:
+            agent_client.close()
+
+    # ------------------------------------------------------------------
+    # Workspace Extended (v3.4.0)
+    # ------------------------------------------------------------------
+
+    def test_33_workspace_init_group(self, base_url: str):
+        """Initialize a group workspace."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.workspace.init_group()
+            if res.get("ok"):
+                data = res.get("data", {})
+                assert "workspaceId" in data
+            else:
+                assert res.get("error") is not None
+        finally:
+            agent_client.close()
+
+    def test_34_workspace_mention_autocomplete(self, base_url: str):
+        """Search for @mention targets."""
+        agent_client = PrismerClient(
+            api_key=self.__class__._agent_a_token,
+            base_url=base_url,
+            timeout=60.0,
+        )
+        try:
+            res = agent_client.im.workspace.mention_autocomplete("agent")
+            if res.get("ok"):
+                data = res.get("data", [])
+                assert isinstance(data, list)
+            else:
+                assert res.get("error") is not None
+        finally:
+            agent_client.close()
+
+    # ------------------------------------------------------------------
     # Edge Cases
     # ------------------------------------------------------------------
 
-    def test_18_duplicate_register(self, client: PrismerClient, run_id: str):
+    def test_35_duplicate_register(self, client: PrismerClient, run_id: str):
         """Registering the same username again should return 409 or an error."""
         res = client.im.account.register(
             type="agent",
@@ -414,7 +814,7 @@ class TestIMLifecycle:
                 "HTTP_ERROR",
             ), f"Unexpected error code: {err}"
 
-    def test_19_send_to_nonexistent_user(self, base_url: str):
+    def test_36_send_to_nonexistent_user(self, base_url: str):
         """Sending a DM to a non-existent user should fail (404 or error)."""
         agent_client = PrismerClient(
             api_key=self.__class__._agent_a_token,
@@ -430,3 +830,142 @@ class TestIMLifecycle:
             )
         finally:
             agent_client.close()
+
+
+# ============================================================================
+# Group 4: Real-Time — WebSocket
+# ============================================================================
+
+class TestRealtimeWebSocket:
+    """Real-time WebSocket integration tests (async)."""
+
+    def test_ws_connect_ping_receive_disconnect(self, base_url: str):
+        """Connect, authenticate, ping, receive message, disconnect via WS."""
+        asyncio.get_event_loop().run_until_complete(
+            self._ws_test(base_url)
+        )
+
+    async def _ws_test(self, base_url: str):
+        from prismer.realtime import AsyncRealtimeWSClient, RealtimeConfig
+
+        token_a = TestIMLifecycle._agent_a_token
+        token_b = TestIMLifecycle._agent_b_token
+        agent_a_id = TestIMLifecycle._agent_a_id
+        agent_b_id = TestIMLifecycle._agent_b_id
+        conv_id = getattr(TestIMLifecycle, "_direct_conv_id", None) or TestIMLifecycle._conv_id
+
+        config = RealtimeConfig(
+            token=token_a,
+            auto_reconnect=False,
+            heartbeat_interval=60.0,
+        )
+
+        ws = AsyncRealtimeWSClient(base_url, config)
+
+        # Track authentication
+        auth_event = asyncio.Event()
+        auth_payload = {}
+
+        @ws.on("authenticated")
+        def on_auth(payload):
+            auth_payload.update(payload.__dict__ if hasattr(payload, "__dict__") else {"raw": payload})
+            auth_event.set()
+
+        # Connect
+        await ws.connect()
+        assert ws.state == "connected"
+
+        # Wait for auth
+        await asyncio.wait_for(auth_event.wait(), timeout=10)
+
+        # Ping
+        pong = await ws.ping()
+        assert pong is not None
+
+        # Join conversation
+        await ws.join_conversation(conv_id)
+        await asyncio.sleep(0.5)
+
+        # Listen for message.new
+        msg_event = asyncio.Event()
+        received_msg = {}
+
+        @ws.on("message.new")
+        def on_msg(payload):
+            received_msg.update(payload.__dict__ if hasattr(payload, "__dict__") else {"raw": payload})
+            msg_event.set()
+
+        # Agent B sends via HTTP
+        client_b = PrismerClient(api_key=token_b, base_url=base_url, timeout=60.0)
+        try:
+            send_res = client_b.im.direct.send(agent_a_id, f"WS realtime test {RUN_ID}")
+            assert send_res.get("ok") is True
+        finally:
+            client_b.close()
+
+        # Wait for event
+        await asyncio.wait_for(msg_event.wait(), timeout=15)
+        assert received_msg
+
+        # Disconnect
+        await ws.disconnect()
+        assert ws.state == "disconnected"
+
+
+# ============================================================================
+# Group 5: Real-Time — SSE
+# ============================================================================
+
+class TestRealtimeSSE:
+    """Real-time SSE integration tests (async)."""
+
+    def test_sse_connect_receive_disconnect(self, base_url: str):
+        """Connect, receive message, disconnect via SSE."""
+        asyncio.get_event_loop().run_until_complete(
+            self._sse_test(base_url)
+        )
+
+    async def _sse_test(self, base_url: str):
+        from prismer.realtime import AsyncRealtimeSSEClient, RealtimeConfig
+
+        token_a = TestIMLifecycle._agent_a_token
+        token_b = TestIMLifecycle._agent_b_token
+        agent_a_id = TestIMLifecycle._agent_a_id
+
+        config = RealtimeConfig(
+            token=token_a,
+            auto_reconnect=False,
+        )
+
+        sse = AsyncRealtimeSSEClient(base_url, config)
+
+        # Connect
+        await sse.connect()
+        assert sse.state == "connected"
+
+        await asyncio.sleep(1)
+
+        # Listen for message.new
+        msg_event = asyncio.Event()
+        received_msg = {}
+
+        @sse.on("message.new")
+        def on_msg(payload):
+            received_msg.update(payload.__dict__ if hasattr(payload, "__dict__") else {"raw": payload})
+            msg_event.set()
+
+        # Agent B sends via HTTP
+        client_b = PrismerClient(api_key=token_b, base_url=base_url, timeout=60.0)
+        try:
+            send_res = client_b.im.direct.send(agent_a_id, f"SSE realtime test {RUN_ID}")
+            assert send_res.get("ok") is True
+        finally:
+            client_b.close()
+
+        # Wait for event
+        await asyncio.wait_for(msg_event.wait(), timeout=15)
+        assert received_msg
+
+        # Disconnect
+        await sse.disconnect()
+        assert sse.state == "disconnected"

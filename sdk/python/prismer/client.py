@@ -93,11 +93,14 @@ class GroupsClient:
     def send(
         self, group_id: str, content: str, *, type: str = "text",
         metadata: Optional[Dict[str, Any]] = None,
+        parent_id: Optional[str] = None,
     ) -> IMResult:
         """Send a message to a group."""
         payload: Dict[str, Any] = {"content": content, "type": type}
         if metadata:
             payload["metadata"] = metadata
+        if parent_id:
+            payload["parentId"] = parent_id
         return self._request("POST", f"/api/im/groups/{group_id}/messages", json=payload)
 
     def get_messages(
@@ -157,11 +160,14 @@ class MessagesClient:
     def send(
         self, conversation_id: str, content: str, *, type: str = "text",
         metadata: Optional[Dict[str, Any]] = None,
+        parent_id: Optional[str] = None,
     ) -> IMResult:
         """Send a message to a conversation."""
         payload: Dict[str, Any] = {"content": content, "type": type}
         if metadata:
             payload["metadata"] = metadata
+        if parent_id:
+            payload["parentId"] = parent_id
         return self._request("POST", f"/api/im/messages/{conversation_id}", json=payload)
 
     def get_history(
@@ -400,10 +406,13 @@ class AsyncGroupsClient:
     async def send(
         self, group_id: str, content: str, *, type: str = "text",
         metadata: Optional[Dict[str, Any]] = None,
+        parent_id: Optional[str] = None,
     ) -> IMResult:
         payload: Dict[str, Any] = {"content": content, "type": type}
         if metadata:
             payload["metadata"] = metadata
+        if parent_id:
+            payload["parentId"] = parent_id
         return await self._request("POST", f"/api/im/groups/{group_id}/messages", json=payload)
 
     async def get_messages(
@@ -456,10 +465,13 @@ class AsyncMessagesClient:
     async def send(
         self, conversation_id: str, content: str, *, type: str = "text",
         metadata: Optional[Dict[str, Any]] = None,
+        parent_id: Optional[str] = None,
     ) -> IMResult:
         payload: Dict[str, Any] = {"content": content, "type": type}
         if metadata:
             payload["metadata"] = metadata
+        if parent_id:
+            payload["parentId"] = parent_id
         return await self._request("POST", f"/api/im/messages/{conversation_id}", json=payload)
 
     async def get_history(

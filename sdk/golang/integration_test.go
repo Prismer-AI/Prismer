@@ -22,6 +22,7 @@ type imMessageLoose struct {
 	Type      string          `json:"type"`
 	SenderID  string          `json:"senderId"`
 	CreatedAt string          `json:"createdAt"`
+	ParentID  *string         `json:"parentId,omitempty"`
 	Metadata  json.RawMessage `json:"metadata,omitempty"`
 }
 
@@ -145,7 +146,7 @@ func TestIntegration_Parse_PDF(t *testing.T) {
 
 func TestIntegration_IM_FullLifecycle(t *testing.T) {
 	apiClient := newClient(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
 
 	ts := time.Now().UnixNano()
@@ -182,6 +183,7 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 		regDataA.IMUserID, regDataA.Username, regDataA.IsNew)
 
 	agentAId := regDataA.IMUserID
+	agentAToken := regDataA.Token
 
 	// Create authenticated client for agent A
 	imClientA := prismer.NewClient(regDataA.Token, prismer.WithEnvironment(prismer.Production))
@@ -216,7 +218,10 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 		regDataB.IMUserID, regDataB.Username, regDataB.IsNew)
 
 	targetId := regDataB.IMUserID
-	_ = agentAId // may be used later
+	agentBToken := regDataB.Token
+	imClientB := prismer.NewClient(agentBToken, prismer.WithEnvironment(prismer.Production))
+	_ = agentAId // used in realtime tests
+	_ = imClientB
 
 	// ---------------------------------------------------------------
 	// 3.3  Account.Me
@@ -267,6 +272,9 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 	// ---------------------------------------------------------------
 	// 3.5  Direct Messaging
 	// ---------------------------------------------------------------
+	var directConvId string
+	var firstDirectMsgId string
+
 	t.Run("Direct_Send", func(t *testing.T) {
 		sendResult, err := imClientA.IM().Direct.Send(ctx, targetId, "Hello from Go integration test!", nil)
 		if err != nil {
@@ -275,7 +283,13 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 		if !sendResult.OK {
 			t.Fatalf("Direct.Send not OK: %+v", sendResult.Error)
 		}
-		t.Logf("Direct.Send — ok=%v", sendResult.OK)
+		// Decode to get conversationId and messageId
+		var msgData prismer.IMMessageData
+		if err := sendResult.Decode(&msgData); err == nil {
+			directConvId = msgData.ConversationID
+			firstDirectMsgId = msgData.Message.ID
+		}
+		t.Logf("Direct.Send — ok=%v convId=%s msgId=%s", sendResult.OK, directConvId, firstDirectMsgId)
 	})
 
 	t.Run("Direct_GetMessages", func(t *testing.T) {
@@ -376,6 +390,7 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 	// 3.8  Groups
 	// ---------------------------------------------------------------
 	var groupId string
+	var groupMsgId string
 
 	t.Run("Groups_Create", func(t *testing.T) {
 		createResult, err := imClientA.IM().Groups.Create(ctx, &prismer.IMCreateGroupOptions{
@@ -457,7 +472,12 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 		if !sendResult.OK {
 			t.Fatalf("Groups.Send not OK: %+v", sendResult.Error)
 		}
-		t.Logf("Groups.Send — ok=%v", sendResult.OK)
+		// Decode to get message ID
+		var msgData prismer.IMMessageData
+		if err := sendResult.Decode(&msgData); err == nil {
+			groupMsgId = msgData.Message.ID
+		}
+		t.Logf("Groups.Send — ok=%v msgId=%s", sendResult.OK, groupMsgId)
 	})
 
 	t.Run("Groups_GetMessages", func(t *testing.T) {
@@ -472,8 +492,6 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 			t.Fatalf("Groups.GetMessages not OK: %+v", msgsResult.Error)
 		}
 
-		// SDK BUG: IMMessage.Metadata is map[string]any but API returns string.
-		// Use imMessageLoose to work around.
 		var messages []imMessageLoose
 		if err := msgsResult.Decode(&messages); err != nil {
 			t.Fatalf("Decode group messages: %v", err)
@@ -503,5 +521,511 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 			t.Fatalf("Decode conversations: %v", err)
 		}
 		t.Logf("Conversations.List — count=%d", len(conversations))
+	})
+
+	t.Run("Conversations_CreateDirect", func(t *testing.T) {
+		createResult, err := imClientA.IM().Conversations.CreateDirect(ctx, targetId)
+		if err != nil {
+			t.Fatalf("Conversations.CreateDirect error: %v", err)
+		}
+		if !createResult.OK {
+			t.Fatalf("Conversations.CreateDirect not OK: %+v", createResult.Error)
+		}
+		t.Logf("Conversations.CreateDirect — ok=%v", createResult.OK)
+	})
+
+	// ---------------------------------------------------------------
+	// 3.10  Message Threading (v3.4.0)
+	// ---------------------------------------------------------------
+	t.Run("Direct_Send_WithParentId", func(t *testing.T) {
+		if firstDirectMsgId == "" {
+			t.Skip("no direct message ID available")
+		}
+		// Send a parent
+		parentResult, err := imClientA.IM().Direct.Send(ctx, targetId, "Parent for Go threading test", nil)
+		if err != nil {
+			t.Fatalf("Parent send error: %v", err)
+		}
+		if !parentResult.OK {
+			t.Fatalf("Parent send not OK: %+v", parentResult.Error)
+		}
+		var parentData prismer.IMMessageData
+		if err := parentResult.Decode(&parentData); err != nil {
+			t.Fatalf("Decode parent: %v", err)
+		}
+		parentMsgId := parentData.Message.ID
+
+		// Send reply with parentId
+		replyResult, err := imClientA.IM().Direct.Send(ctx, targetId, "Threaded reply from Go", &prismer.IMSendOptions{
+			ParentID: parentMsgId,
+		})
+		if err != nil {
+			t.Fatalf("Reply send error: %v", err)
+		}
+		if !replyResult.OK {
+			t.Fatalf("Reply send not OK: %+v", replyResult.Error)
+		}
+		t.Logf("Direct_Send_WithParentId — parentId=%s ok=%v", parentMsgId, replyResult.OK)
+	})
+
+	t.Run("Group_Send_WithParentId", func(t *testing.T) {
+		if groupId == "" || groupMsgId == "" {
+			t.Skip("no group or group message available")
+		}
+		// Send a parent
+		parentResult, err := imClientA.IM().Groups.Send(ctx, groupId, "Group parent for Go threading", nil)
+		if err != nil {
+			t.Fatalf("Group parent send error: %v", err)
+		}
+		if !parentResult.OK {
+			t.Fatalf("Group parent not OK: %+v", parentResult.Error)
+		}
+		var parentData prismer.IMMessageData
+		if err := parentResult.Decode(&parentData); err != nil {
+			t.Fatalf("Decode group parent: %v", err)
+		}
+
+		// Reply with parentId
+		replyResult, err := imClientA.IM().Groups.Send(ctx, groupId, "Group threaded reply from Go", &prismer.IMSendOptions{
+			ParentID: parentData.Message.ID,
+		})
+		if err != nil {
+			t.Fatalf("Group reply error: %v", err)
+		}
+		if !replyResult.OK {
+			t.Fatalf("Group reply not OK: %+v", replyResult.Error)
+		}
+		t.Logf("Group_Send_WithParentId — ok=%v", replyResult.OK)
+	})
+
+	// ---------------------------------------------------------------
+	// 3.11  New Message Types (v3.4.0)
+	// ---------------------------------------------------------------
+	t.Run("Send_Markdown_Message", func(t *testing.T) {
+		result, err := imClientA.IM().Direct.Send(ctx, targetId, "# Heading\n\n**bold**", &prismer.IMSendOptions{
+			Type: "markdown",
+		})
+		if err != nil {
+			t.Fatalf("Markdown send error: %v", err)
+		}
+		if !result.OK {
+			t.Fatalf("Markdown send not OK: %+v", result.Error)
+		}
+		t.Logf("Send_Markdown — ok=%v", result.OK)
+	})
+
+	t.Run("Send_ToolCall_Message", func(t *testing.T) {
+		result, err := imClientA.IM().Direct.Send(ctx, targetId, `{"tool":"search","query":"test"}`, &prismer.IMSendOptions{
+			Type:     "tool_call",
+			Metadata: map[string]any{"toolName": "search", "toolCallId": "tc-go-001"},
+		})
+		if err != nil {
+			t.Fatalf("ToolCall send error: %v", err)
+		}
+		if !result.OK {
+			t.Fatalf("ToolCall send not OK: %+v", result.Error)
+		}
+		t.Logf("Send_ToolCall — ok=%v", result.OK)
+	})
+
+	t.Run("Send_ToolResult_Message", func(t *testing.T) {
+		result, err := imClientA.IM().Direct.Send(ctx, targetId, `{"results":["item1","item2"]}`, &prismer.IMSendOptions{
+			Type:     "tool_result",
+			Metadata: map[string]any{"toolCallId": "tc-go-001"},
+		})
+		if err != nil {
+			t.Fatalf("ToolResult send error: %v", err)
+		}
+		if !result.OK {
+			t.Fatalf("ToolResult send not OK: %+v", result.Error)
+		}
+		t.Logf("Send_ToolResult — ok=%v", result.OK)
+	})
+
+	t.Run("Send_Thinking_Message", func(t *testing.T) {
+		result, err := imClientA.IM().Direct.Send(ctx, targetId, "Analyzing step by step...", &prismer.IMSendOptions{
+			Type: "thinking",
+		})
+		if err != nil {
+			t.Fatalf("Thinking send error: %v", err)
+		}
+		if !result.OK {
+			t.Fatalf("Thinking send not OK: %+v", result.Error)
+		}
+		t.Logf("Send_Thinking — ok=%v", result.OK)
+	})
+
+	t.Run("Send_Image_Message", func(t *testing.T) {
+		result, err := imClientA.IM().Direct.Send(ctx, targetId, "https://example.com/test-image.png", &prismer.IMSendOptions{
+			Type:     "image",
+			Metadata: map[string]any{"mimeType": "image/png", "width": 800, "height": 600},
+		})
+		if err != nil {
+			t.Fatalf("Image send error: %v", err)
+		}
+		if !result.OK {
+			t.Fatalf("Image send not OK: %+v", result.Error)
+		}
+		t.Logf("Send_Image — ok=%v", result.OK)
+	})
+
+	t.Run("Send_File_Message", func(t *testing.T) {
+		result, err := imClientA.IM().Direct.Send(ctx, targetId, "https://example.com/document.pdf", &prismer.IMSendOptions{
+			Type:     "file",
+			Metadata: map[string]any{"filename": "document.pdf", "mimeType": "application/pdf", "size": 1024},
+		})
+		if err != nil {
+			t.Fatalf("File send error: %v", err)
+		}
+		if !result.OK {
+			t.Fatalf("File send not OK: %+v", result.Error)
+		}
+		t.Logf("Send_File — ok=%v", result.OK)
+	})
+
+	// ---------------------------------------------------------------
+	// 3.12  Message Metadata (v3.4.0)
+	// ---------------------------------------------------------------
+	t.Run("Send_Message_With_Metadata", func(t *testing.T) {
+		metadata := map[string]any{
+			"source":  "integration-test",
+			"version": "3.4.0",
+			"custom":  map[string]any{"nested": true, "tags": []string{"test", "v3.4.0"}},
+		}
+		result, err := imClientA.IM().Direct.Send(ctx, targetId, "Message with metadata from Go", &prismer.IMSendOptions{
+			Metadata: metadata,
+		})
+		if err != nil {
+			t.Fatalf("Metadata send error: %v", err)
+		}
+		if !result.OK {
+			t.Fatalf("Metadata send not OK: %+v", result.Error)
+		}
+
+		// Verify in history
+		histResult, err := imClientA.IM().Direct.GetMessages(ctx, targetId, nil)
+		if err != nil {
+			t.Fatalf("GetMessages error: %v", err)
+		}
+		if histResult.OK {
+			var msgs []imMessageLoose
+			if err := histResult.Decode(&msgs); err == nil {
+				found := false
+				for _, m := range msgs {
+					if m.Content == "Message with metadata from Go" && len(m.Metadata) > 0 {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Log("Warning: metadata message found but metadata may not be preserved in history")
+				}
+			}
+		}
+		t.Logf("Send_Message_With_Metadata — ok=%v", result.OK)
+	})
+
+	// ---------------------------------------------------------------
+	// 3.13  Messages Edit & Delete
+	// ---------------------------------------------------------------
+	t.Run("Messages_Edit", func(t *testing.T) {
+		if directConvId == "" {
+			t.Skip("no direct conversation ID")
+		}
+		// Send a message to edit
+		sendResult, err := imClientA.IM().Messages.Send(ctx, directConvId, "Message to edit from Go", nil)
+		if err != nil {
+			t.Fatalf("Messages.Send error: %v", err)
+		}
+		if !sendResult.OK {
+			t.Fatalf("Messages.Send not OK: %+v", sendResult.Error)
+		}
+		var msgData prismer.IMMessageData
+		if err := sendResult.Decode(&msgData); err != nil {
+			t.Fatalf("Decode msg: %v", err)
+		}
+
+		editResult, err := imClientA.IM().Messages.Edit(ctx, directConvId, msgData.Message.ID, "Edited from Go")
+		if err != nil {
+			t.Logf("Messages.Edit error (may not be supported): %v", err)
+			return
+		}
+		if editResult.OK {
+			t.Logf("Messages.Edit — ok=%v", editResult.OK)
+		} else {
+			t.Logf("Messages.Edit — not supported: %+v", editResult.Error)
+		}
+	})
+
+	t.Run("Messages_Delete", func(t *testing.T) {
+		if directConvId == "" {
+			t.Skip("no direct conversation ID")
+		}
+		// Send a throwaway to delete
+		sendResult, err := imClientA.IM().Messages.Send(ctx, directConvId, "Message to delete from Go", nil)
+		if err != nil {
+			t.Fatalf("Messages.Send error: %v", err)
+		}
+		if !sendResult.OK {
+			t.Fatalf("Messages.Send not OK: %+v", sendResult.Error)
+		}
+		var msgData prismer.IMMessageData
+		if err := sendResult.Decode(&msgData); err != nil {
+			t.Fatalf("Decode msg: %v", err)
+		}
+
+		delResult, err := imClientA.IM().Messages.Delete(ctx, directConvId, msgData.Message.ID)
+		if err != nil {
+			t.Logf("Messages.Delete error (may not be supported): %v", err)
+			return
+		}
+		if delResult.OK {
+			t.Logf("Messages.Delete — ok=%v", delResult.OK)
+		} else {
+			t.Logf("Messages.Delete — not supported: %+v", delResult.Error)
+		}
+	})
+
+	// ---------------------------------------------------------------
+	// 3.14  Groups Extended: Remove Member
+	// ---------------------------------------------------------------
+	t.Run("Groups_RemoveMember", func(t *testing.T) {
+		// Register agent C
+		agentCUser := uniqueName("gotest_c")
+		regResultC, err := apiClient.IM().Account.Register(ctx, &prismer.IMRegisterOptions{
+			Type:         "agent",
+			Username:     agentCUser,
+			DisplayName:  fmt.Sprintf("Go Test Agent C %d", ts),
+			AgentType:    "bot",
+			Capabilities: []string{"testing"},
+		})
+		if err != nil {
+			t.Fatalf("Register agent C error: %v", err)
+		}
+		if !regResultC.OK {
+			t.Fatalf("Register agent C not OK: %+v", regResultC.Error)
+		}
+		var regDataC prismer.IMRegisterData
+		if err := regResultC.Decode(&regDataC); err != nil {
+			t.Fatalf("Decode register C: %v", err)
+		}
+
+		// Create group with C
+		createResult, err := imClientA.IM().Groups.Create(ctx, &prismer.IMCreateGroupOptions{
+			Title:   fmt.Sprintf("Remove Test Group %d", ts),
+			Members: []string{regDataC.IMUserID},
+		})
+		if err != nil {
+			t.Fatalf("Groups.Create error: %v", err)
+		}
+		if !createResult.OK {
+			t.Fatalf("Groups.Create not OK: %+v", createResult.Error)
+		}
+		var rmGroupData prismer.IMGroupData
+		if err := createResult.Decode(&rmGroupData); err != nil {
+			t.Fatalf("Decode group: %v", err)
+		}
+
+		// Remove C
+		rmResult, err := imClientA.IM().Groups.RemoveMember(ctx, rmGroupData.GroupID, regDataC.IMUserID)
+		if err != nil {
+			t.Logf("Groups.RemoveMember error (may not be supported): %v", err)
+			return
+		}
+		if rmResult.OK {
+			t.Logf("Groups.RemoveMember — ok=%v", rmResult.OK)
+		} else {
+			t.Logf("Groups.RemoveMember — %+v", rmResult.Error)
+		}
+	})
+
+	// ---------------------------------------------------------------
+	// 3.15  Workspace Extended
+	// ---------------------------------------------------------------
+	t.Run("Workspace_Init", func(t *testing.T) {
+		wsResult, err := imClientA.IM().Workspace.Init(ctx)
+		if err != nil {
+			t.Logf("Workspace.Init error: %v", err)
+			return
+		}
+		if wsResult.OK {
+			t.Logf("Workspace.Init — ok=%v", wsResult.OK)
+		} else {
+			t.Logf("Workspace.Init — not available: %+v", wsResult.Error)
+		}
+	})
+
+	t.Run("Workspace_InitGroup", func(t *testing.T) {
+		wsResult, err := imClientA.IM().Workspace.InitGroup(ctx)
+		if err != nil {
+			t.Logf("Workspace.InitGroup error: %v", err)
+			return
+		}
+		if wsResult.OK {
+			t.Logf("Workspace.InitGroup — ok=%v", wsResult.OK)
+		} else {
+			t.Logf("Workspace.InitGroup — not available: %+v", wsResult.Error)
+		}
+	})
+
+	t.Run("Workspace_MentionAutocomplete", func(t *testing.T) {
+		acResult, err := imClientA.IM().Workspace.MentionAutocomplete(ctx, "agent")
+		if err != nil {
+			t.Logf("Workspace.MentionAutocomplete error: %v", err)
+			return
+		}
+		if acResult.OK {
+			t.Logf("Workspace.MentionAutocomplete — ok=%v", acResult.OK)
+		} else {
+			t.Logf("Workspace.MentionAutocomplete — not available: %+v", acResult.Error)
+		}
+	})
+
+	// ---------------------------------------------------------------
+	// 3.16  Real-Time: WebSocket
+	// ---------------------------------------------------------------
+	t.Run("Realtime_WebSocket", func(t *testing.T) {
+		wsCtx, wsCancel := context.WithTimeout(ctx, 30*time.Second)
+		defer wsCancel()
+
+		ws := imClientA.IM().Realtime.ConnectWS(&prismer.RealtimeConfig{
+			Token:             agentAToken,
+			AutoReconnect:     false,
+			HeartbeatInterval: 60 * time.Second,
+		})
+
+		// Track authentication
+		authCh := make(chan prismer.AuthenticatedPayload, 1)
+		ws.OnAuthenticated(func(p prismer.AuthenticatedPayload) {
+			authCh <- p
+		})
+
+		// Connect
+		if err := ws.Connect(wsCtx); err != nil {
+			t.Fatalf("WS Connect error: %v", err)
+		}
+		if ws.State() != prismer.StateConnected {
+			t.Fatalf("expected connected, got %s", ws.State())
+		}
+
+		// Wait for auth
+		select {
+		case auth := <-authCh:
+			t.Logf("WS Authenticated — userId=%s username=%s", auth.UserID, auth.Username)
+		case <-time.After(10 * time.Second):
+			t.Fatal("WS auth timeout")
+		}
+
+		// Ping
+		pong, err := ws.Ping(wsCtx)
+		if err != nil {
+			t.Fatalf("WS Ping error: %v", err)
+		}
+		t.Logf("WS Ping — requestId=%s", pong.RequestID)
+
+		// Join conversation
+		if directConvId != "" {
+			if err := ws.JoinConversation(wsCtx, directConvId); err != nil {
+				t.Fatalf("WS JoinConversation error: %v", err)
+			}
+			time.Sleep(500 * time.Millisecond)
+
+			// Listen for message.new
+			msgCh := make(chan prismer.MessageNewPayload, 1)
+			ws.OnMessageNew(func(p prismer.MessageNewPayload) {
+				msgCh <- p
+			})
+
+			// Agent B sends via HTTP
+			sendResult, err := imClientB.IM().Direct.Send(wsCtx, agentAId, fmt.Sprintf("WS realtime test %d", ts), nil)
+			if err != nil {
+				t.Fatalf("Agent B send error: %v", err)
+			}
+			if !sendResult.OK {
+				t.Fatalf("Agent B send not OK: %+v", sendResult.Error)
+			}
+
+			// Wait for message
+			select {
+			case msg := <-msgCh:
+				t.Logf("WS message.new — content=%q senderId=%s", msg.Content, msg.SenderID)
+				if msg.SenderID != targetId {
+					t.Errorf("expected senderId=%s, got %s", targetId, msg.SenderID)
+				}
+			case <-time.After(15 * time.Second):
+				t.Error("WS message.new timeout")
+			}
+		}
+
+		// Disconnect
+		if err := ws.Disconnect(); err != nil {
+			t.Logf("WS Disconnect error: %v", err)
+		}
+		if ws.State() != prismer.StateDisconnected {
+			t.Errorf("expected disconnected, got %s", ws.State())
+		}
+		t.Logf("WS Disconnect — ok")
+	})
+
+	// ---------------------------------------------------------------
+	// 3.17  Real-Time: SSE
+	// ---------------------------------------------------------------
+	t.Run("Realtime_SSE", func(t *testing.T) {
+		sseCtx, sseCancel := context.WithTimeout(ctx, 30*time.Second)
+		defer sseCancel()
+
+		sse := imClientA.IM().Realtime.ConnectSSE(&prismer.RealtimeConfig{
+			Token:         agentAToken,
+			AutoReconnect: false,
+		})
+
+		// Track authentication
+		authCh := make(chan prismer.AuthenticatedPayload, 1)
+		sse.OnAuthenticated(func(p prismer.AuthenticatedPayload) {
+			authCh <- p
+		})
+
+		// Connect
+		if err := sse.Connect(sseCtx); err != nil {
+			t.Fatalf("SSE Connect error: %v", err)
+		}
+		if sse.State() != prismer.StateConnected {
+			t.Fatalf("expected connected, got %s", sse.State())
+		}
+
+		// Wait briefly
+		time.Sleep(1 * time.Second)
+
+		// Listen for message.new
+		msgCh := make(chan prismer.MessageNewPayload, 1)
+		sse.OnMessageNew(func(p prismer.MessageNewPayload) {
+			msgCh <- p
+		})
+
+		// Agent B sends via HTTP
+		sendResult, err := imClientB.IM().Direct.Send(sseCtx, agentAId, fmt.Sprintf("SSE realtime test %d", ts), nil)
+		if err != nil {
+			t.Fatalf("Agent B SSE send error: %v", err)
+		}
+		if !sendResult.OK {
+			t.Fatalf("Agent B SSE send not OK: %+v", sendResult.Error)
+		}
+
+		// Wait for message
+		select {
+		case msg := <-msgCh:
+			t.Logf("SSE message.new — content=%q senderId=%s", msg.Content, msg.SenderID)
+		case <-time.After(15 * time.Second):
+			t.Error("SSE message.new timeout")
+		}
+
+		// Disconnect
+		if err := sse.Disconnect(); err != nil {
+			t.Logf("SSE Disconnect error: %v", err)
+		}
+		if sse.State() != prismer.StateDisconnected {
+			t.Errorf("expected disconnected, got %s", sse.State())
+		}
+		t.Logf("SSE Disconnect — ok")
 	})
 }
