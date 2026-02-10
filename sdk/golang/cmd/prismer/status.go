@@ -57,7 +57,7 @@ var statusCmd = &cobra.Command{
 						tokenStatus = fmt.Sprintf("EXPIRED (expired %s)", expires.Format(time.RFC3339))
 					}
 				} else {
-					tokenStatus = fmt.Sprintf("present (unparseable expiry: %s)", cfg.Auth.IMTokenExpires)
+					tokenStatus = fmt.Sprintf("set (expires in %s)", cfg.Auth.IMTokenExpires)
 				}
 			} else {
 				tokenStatus = "present (no expiry set)"
@@ -65,8 +65,8 @@ var statusCmd = &cobra.Command{
 		}
 		fmt.Printf("  Token:       %s\n", tokenStatus)
 
-		// If we have an API key and token, try live status via me().
-		if cfg.Default.APIKey != "" && cfg.Auth.IMToken != "" {
+		// If we have an IM token, try live status via me() (requires JWT, not API key).
+		if cfg.Auth.IMToken != "" {
 			fmt.Println()
 			fmt.Println("Live status:")
 
@@ -77,7 +77,7 @@ var statusCmd = &cobra.Command{
 				opts = append(opts, prismer.WithEnvironment(prismer.Environment(cfg.Default.Environment)))
 			}
 
-			client := prismer.NewClient(cfg.Default.APIKey, opts...)
+			client := prismer.NewClient(cfg.Auth.IMToken, opts...)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()

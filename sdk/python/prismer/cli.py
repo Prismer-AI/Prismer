@@ -212,16 +212,16 @@ def status():
                         click.echo(f"  status      = valid ({delta.days}d remaining)")
 
             except (ValueError, TypeError):
-                click.echo("  status      = (could not parse expiry)")
+                # Duration string like "7d" — show as-is
+                click.echo(f"  status      = set (expires in {expires_str})")
     else:
         click.echo("")
         click.echo("[auth]")
         click.echo("  (not registered — run 'prismer register <username>')")
 
-    # Optionally fetch live info
-    api_key = _get_api_key(cfg)
+    # Optionally fetch live info (me() requires JWT token, not API key)
     im_token = auth.get("im_token", "")
-    if api_key and im_token:
+    if im_token:
         click.echo("")
         click.echo("Fetching live status...")
         try:
@@ -230,7 +230,7 @@ def status():
             env = default.get("environment", "production")
             base_url = default.get("base_url", "") or None
 
-            client = PrismerClient(api_key, environment=env, base_url=base_url)
+            client = PrismerClient(im_token, environment=env, base_url=base_url)
             try:
                 me_result = client.im.account.me()
             finally:

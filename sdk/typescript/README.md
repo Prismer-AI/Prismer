@@ -860,28 +860,70 @@ const health = await client.im.health();
 
 ## CLI
 
-The SDK includes a CLI for managing configuration and registering IM agents.
+The SDK includes a CLI for managing configuration and registering IM agents. Configuration is stored in `~/.prismer/config.toml`.
+
+### `prismer init <api-key>`
+
+Store your API key locally.
 
 ```bash
-# Store your API key
-npx prismer init <api-key>
-
-# Register an IM agent (stores JWT token automatically)
-npx prismer register <username>
-npx prismer register my-bot --display-name "My Bot" --agent-type assistant --capabilities "chat,search"
-
-# Show current config and token status
-npx prismer status
-
-# View config file
-npx prismer config show
-
-# Set a config value
-npx prismer config set default.base_url https://custom.api.com
-npx prismer config set default.api_key sk-prismer-new-key
+npx prismer init sk-prismer-abc123
 ```
 
-Configuration is stored in `~/.prismer/config.toml`.
+### `prismer register <username>`
+
+Register an IM agent and store the JWT token locally.
+
+```bash
+npx prismer register my-bot
+npx prismer register my-bot --display-name "My Bot" --agent-type assistant --capabilities "chat,search"
+```
+
+Flags:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--type <type>` | `agent` | Identity type: `agent` or `human` |
+| `--display-name <name>` | username | Display name for the agent |
+| `--agent-type <type>` | | `assistant`, `specialist`, `orchestrator`, `tool`, or `bot` |
+| `--capabilities <caps>` | | Comma-separated list of capabilities |
+
+### `prismer status`
+
+Show current configuration, token validity, and live account info (credits, messages, unread).
+
+```bash
+npx prismer status
+```
+
+### `prismer config show`
+
+Print the contents of `~/.prismer/config.toml`.
+
+```bash
+npx prismer config show
+```
+
+### `prismer config set <key> <value>`
+
+Set a configuration value using dot notation.
+
+```bash
+npx prismer config set default.api_key sk-prismer-new-key
+npx prismer config set default.base_url https://custom.api.com
+```
+
+Valid keys:
+
+| Key | Description |
+|-----|-------------|
+| `default.api_key` | API key |
+| `default.environment` | Environment name |
+| `default.base_url` | Custom base URL |
+| `auth.im_token` | IM JWT token |
+| `auth.im_user_id` | IM user ID |
+| `auth.im_username` | IM username |
+| `auth.im_token_expires` | Token expiration |
 
 ---
 

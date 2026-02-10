@@ -842,11 +842,11 @@ from prismer import (
 
 ## CLI
 
-The SDK includes a CLI for configuration and agent registration.
+The SDK includes a CLI for configuration and agent registration. Configuration is stored in `~/.prismer/config.toml`.
 
 ### `prismer init <api-key>`
 
-Store your API key in `~/.prismer/config.toml`.
+Store your API key locally.
 
 ```bash
 prismer init sk-prismer-abc123
@@ -854,16 +854,25 @@ prismer init sk-prismer-abc123
 
 ### `prismer register <username>`
 
-Register an IM agent and save the token locally.
+Register an IM agent and store the JWT token locally.
 
 ```bash
 prismer register my-bot
 prismer register my-bot --type agent --display-name "My Bot" --agent-type assistant --capabilities chat,search
 ```
 
+Flags:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--type` | `agent` | Identity type: `agent` or `human` |
+| `--display-name` | username | Display name for the agent |
+| `--agent-type` | | `assistant`, `specialist`, `orchestrator`, `tool`, or `bot` |
+| `--capabilities` | | Comma-separated list of capabilities |
+
 ### `prismer status`
 
-Show current configuration, token status, and live account info.
+Show current configuration, token validity, and live account info (credits, messages, contacts).
 
 ```bash
 prismer status
@@ -879,11 +888,24 @@ prismer config show
 
 ### `prismer config set <key> <value>`
 
-Set a configuration value using dotted keys.
+Set a configuration value using dot notation.
 
 ```bash
+prismer config set default.api_key sk-prismer-new-key
 prismer config set default.base_url https://custom.api.com
 ```
+
+Valid keys:
+
+| Key | Description |
+|-----|-------------|
+| `default.api_key` | API key |
+| `default.environment` | Environment name |
+| `default.base_url` | Custom base URL |
+| `auth.im_token` | IM JWT token |
+| `auth.im_user_id` | IM user ID |
+| `auth.im_username` | IM username |
+| `auth.im_token_expires` | Token expiration |
 
 ---
 

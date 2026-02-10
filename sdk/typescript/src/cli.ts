@@ -215,10 +215,15 @@ program
       const expires = config.auth?.im_token_expires;
       if (expires) {
         const expiresDate = new Date(expires);
-        const now = new Date();
-        const isExpired = expiresDate <= now;
-        const label = isExpired ? 'EXPIRED' : 'valid';
-        console.log(`IM Token:    ${label} (expires ${expiresDate.toISOString()})`);
+        if (!isNaN(expiresDate.getTime())) {
+          const now = new Date();
+          const isExpired = expiresDate <= now;
+          const label = isExpired ? 'EXPIRED' : 'valid';
+          console.log(`IM Token:    ${label} (expires ${expiresDate.toISOString()})`);
+        } else {
+          // Duration string like "7d"
+          console.log(`IM Token:    set (expires in ${expires})`);
+        }
       } else {
         console.log('IM Token:    set (expiry unknown)');
       }
@@ -226,13 +231,13 @@ program
       console.log('IM Token:    (not registered)');
     }
 
-    // Live info
-    if (apiKey && token) {
+    // Live info (me() requires JWT token, not API key)
+    if (token) {
       console.log('');
       console.log('--- Live Info ---');
       try {
         const client = new PrismerClient({
-          apiKey,
+          apiKey: token,
           environment: (config.default?.environment as 'production') || 'production',
           baseUrl: config.default?.base_url || undefined,
         });
