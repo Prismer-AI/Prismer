@@ -25,8 +25,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -311,6 +315,7 @@ type IMClient struct {
 	Bindings      *BindingsClient
 	Credits       *CreditsClient
 	Workspace     *WorkspaceClient
+	Files         *FilesClient
 	Realtime      *IMRealtimeClient
 }
 
@@ -325,6 +330,7 @@ func newIMClient(c *Client) *IMClient {
 	im.Bindings = &BindingsClient{im: im}
 	im.Credits = &CreditsClient{im: im}
 	im.Workspace = &WorkspaceClient{im: im}
+	im.Files = &FilesClient{im: im}
 	im.Realtime = &IMRealtimeClient{im: im}
 	return im
 }
@@ -563,6 +569,349 @@ func (w *WorkspaceClient) MentionAutocomplete(ctx context.Context, conversationI
 		q["q"] = query
 	}
 	return w.im.do(ctx, "GET", "/api/im/workspace/mentions/autocomplete", nil, q)
+}
+
+// FilesClient handles file upload management.
+type FilesClient struct{ im *IMClient }
+
+// Presign gets a presigned upload URL.
+func (f *FilesClient) Presign(ctx context.Context, opts *IMPresignOptions) (*IMResult, error) {
+	return f.im.do(ctx, "POST", "/api/im/files/presign", opts, nil)
+}
+
+// Confirm confirms an uploaded file (triggers validation + CDN activation).
+func (f *FilesClient) Confirm(ctx context.Context, uploadID string) (*IMResult, error) {
+	return f.im.do(ctx, "POST", "/api/im/files/confirm", map[string]string{"uploadId": uploadID}, nil)
+}
+
+// Quota returns storage quota.
+func (f *FilesClient) Quota(ctx context.Context) (*IMResult, error) {
+	return f.im.do(ctx, "GET", "/api/im/files/quota", nil, nil)
+}
+
+// Delete deletes a file.
+func (f *FilesClient) Delete(ctx context.Context, uploadID string) (*IMResult, error) {
+	return f.im.do(ctx, "DELETE", "/api/im/files/"+uploadID, nil, nil)
+}
+
+// Types returns allowed MIME types.
+func (f *FilesClient) Types(ctx context.Context) (*IMResult, error) {
+	return f.im.do(ctx, "GET", "/api/im/files/types", nil, nil)
+}
+
+// InitMultipart initializes a multipart upload (for files > 10 MB).
+func (f *FilesClient) InitMultipart(ctx context.Context, opts *IMPresignOptions) (*IMResult, error) {
+	return f.im.do(ctx, "POST", "/api/im/files/upload/init", opts, nil)
+}
+
+// CompleteMultipart completes a multipart upload.
+func (f *FilesClient) CompleteMultipart(ctx context.Context, uploadID string, parts []IMCompletedPart) (*IMResult, error) {
+	return f.im.do(ctx, "POST", "/api/im/files/upload/complete", map[string]interface{}{
+		"uploadId": uploadID, "parts": parts,
+	}, nil)
+}
+
+// Upload uploads a file from bytes (full lifecycle: presign → upload → confirm).
+// FileName in opts is required.
+func (f *FilesClient) Upload(ctx context.Context, data []byte, opts *UploadOptions) (*IMConfirmResult, error) {
+	if opts == nil || opts.FileName == "" {
+		return nil, fmt.Errorf("fileName is required when uploading bytes")
+	}
+	fileName := opts.FileName
+	mimeType := opts.MimeType
+	if mimeType == "" {
+		mimeType = guessMimeType(fileName)
+	}
+	fileSize := int64(len(data))
+
+	if fileSize > 50*1024*1024 {
+		return nil, fmt.Errorf("file exceeds maximum size of 50 MB")
+	}
+
+	if fileSize <= 10*1024*1024 {
+		return f.uploadSimple(ctx, data, fileName, fileSize, mimeType, opts.OnProgress)
+	}
+	return f.uploadMultipart(ctx, data, fileName, fileSize, mimeType, opts.OnProgress)
+}
+
+// UploadFile uploads a file from a local path.
+// FileName and MimeType in opts are auto-detected from the path if not set.
+func (f *FilesClient) UploadFile(ctx context.Context, filePath string, opts *UploadOptions) (*IMConfirmResult, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+	if opts == nil {
+		opts = &UploadOptions{}
+	}
+	if opts.FileName == "" {
+		opts.FileName = filepath.Base(filePath)
+	}
+	return f.Upload(ctx, data, opts)
+}
+
+// SendFile uploads a file and sends it as a message in one call.
+func (f *FilesClient) SendFile(ctx context.Context, conversationID string, data []byte, opts *SendFileOptions) (*SendFileResult, error) {
+	if opts == nil || opts.FileName == "" {
+		return nil, fmt.Errorf("fileName is required")
+	}
+
+	uploaded, err := f.Upload(ctx, data, &UploadOptions{
+		FileName:   opts.FileName,
+		MimeType:   opts.MimeType,
+		OnProgress: opts.OnProgress,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	content := opts.Content
+	if content == "" {
+		content = uploaded.FileName
+	}
+
+	payload := map[string]interface{}{
+		"content": content,
+		"type":    "file",
+		"metadata": map[string]interface{}{
+			"uploadId": uploaded.UploadID,
+			"fileUrl":  uploaded.CdnURL,
+			"fileName": uploaded.FileName,
+			"fileSize": uploaded.FileSize,
+			"mimeType": uploaded.MimeType,
+		},
+	}
+	if opts.ParentID != "" {
+		payload["parentId"] = opts.ParentID
+	}
+
+	msgResult, err := f.im.do(ctx, "POST", "/api/im/messages/"+conversationID, payload, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !msgResult.OK {
+		msg := "failed to send file message"
+		if msgResult.Error != nil {
+			msg = msgResult.Error.Message
+		}
+		return nil, fmt.Errorf("%s", msg)
+	}
+
+	return &SendFileResult{Upload: uploaded, Message: msgResult.Data}, nil
+}
+
+// --------------------------------------------------------------------------
+// Private upload helpers
+// --------------------------------------------------------------------------
+
+func (f *FilesClient) uploadSimple(
+	ctx context.Context, data []byte, fileName string, fileSize int64, mimeType string,
+	onProgress func(int64, int64),
+) (*IMConfirmResult, error) {
+	// Presign
+	presignRes, err := f.Presign(ctx, &IMPresignOptions{FileName: fileName, FileSize: fileSize, MimeType: mimeType})
+	if err != nil {
+		return nil, err
+	}
+	if !presignRes.OK {
+		msg := "presign failed"
+		if presignRes.Error != nil {
+			msg = presignRes.Error.Message
+		}
+		return nil, fmt.Errorf("%s", msg)
+	}
+	var presign IMPresignResult
+	if err := presignRes.Decode(&presign); err != nil {
+		return nil, fmt.Errorf("failed to decode presign: %w", err)
+	}
+
+	// Build multipart form
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+
+	isS3 := strings.HasPrefix(presign.URL, "http")
+	if isS3 {
+		for k, v := range presign.Fields {
+			_ = w.WriteField(k, v)
+		}
+	}
+
+	part, err := w.CreateFormFile("file", fileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create form file: %w", err)
+	}
+	if _, err := part.Write(data); err != nil {
+		return nil, fmt.Errorf("failed to write file data: %w", err)
+	}
+	_ = w.Close()
+
+	uploadURL := presign.URL
+	if !isS3 {
+		uploadURL = f.im.client.baseURL + presign.URL
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", uploadURL, &buf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create upload request: %w", err)
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	if !isS3 {
+		f.setAuthHeaders(req)
+	}
+
+	resp, err := f.im.client.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("upload failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("upload failed (%d): %s", resp.StatusCode, string(body))
+	}
+
+	if onProgress != nil {
+		onProgress(fileSize, fileSize)
+	}
+
+	// Confirm
+	confirmRes, err := f.Confirm(ctx, presign.UploadID)
+	if err != nil {
+		return nil, err
+	}
+	if !confirmRes.OK {
+		msg := "confirm failed"
+		if confirmRes.Error != nil {
+			msg = confirmRes.Error.Message
+		}
+		return nil, fmt.Errorf("%s", msg)
+	}
+	var confirmed IMConfirmResult
+	if err := confirmRes.Decode(&confirmed); err != nil {
+		return nil, fmt.Errorf("failed to decode confirm: %w", err)
+	}
+	return &confirmed, nil
+}
+
+func (f *FilesClient) uploadMultipart(
+	ctx context.Context, data []byte, fileName string, fileSize int64, mimeType string,
+	onProgress func(int64, int64),
+) (*IMConfirmResult, error) {
+	// Init
+	initRes, err := f.InitMultipart(ctx, &IMPresignOptions{FileName: fileName, FileSize: fileSize, MimeType: mimeType})
+	if err != nil {
+		return nil, err
+	}
+	if !initRes.OK {
+		msg := "multipart init failed"
+		if initRes.Error != nil {
+			msg = initRes.Error.Message
+		}
+		return nil, fmt.Errorf("%s", msg)
+	}
+	var init IMMultipartInitResult
+	if err := initRes.Decode(&init); err != nil {
+		return nil, fmt.Errorf("failed to decode multipart init: %w", err)
+	}
+
+	// Upload parts
+	const chunkSize = 5 * 1024 * 1024
+	var completed []IMCompletedPart
+	var uploaded int64
+
+	for _, p := range init.Parts {
+		start := int64(p.PartNumber-1) * chunkSize
+		end := start + chunkSize
+		if end > fileSize {
+			end = fileSize
+		}
+		chunk := data[start:end]
+
+		isS3 := strings.HasPrefix(p.URL, "http")
+		partURL := p.URL
+		if !isS3 {
+			partURL = f.im.client.baseURL + p.URL
+		}
+
+		req, err := http.NewRequestWithContext(ctx, "PUT", partURL, bytes.NewReader(chunk))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create part request: %w", err)
+		}
+		req.Header.Set("Content-Type", mimeType)
+		if !isS3 {
+			f.setAuthHeaders(req)
+		}
+
+		resp, err := f.im.client.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("part %d upload failed: %w", p.PartNumber, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("part %d upload failed (%d)", p.PartNumber, resp.StatusCode)
+		}
+
+		etag := resp.Header.Get("ETag")
+		if etag == "" {
+			etag = fmt.Sprintf(`"part-%d"`, p.PartNumber)
+		}
+		completed = append(completed, IMCompletedPart{PartNumber: p.PartNumber, ETag: etag})
+		uploaded += int64(len(chunk))
+		if onProgress != nil {
+			onProgress(uploaded, fileSize)
+		}
+	}
+
+	// Complete
+	completeRes, err := f.CompleteMultipart(ctx, init.UploadID, completed)
+	if err != nil {
+		return nil, err
+	}
+	if !completeRes.OK {
+		msg := "multipart complete failed"
+		if completeRes.Error != nil {
+			msg = completeRes.Error.Message
+		}
+		return nil, fmt.Errorf("%s", msg)
+	}
+	var confirmed IMConfirmResult
+	if err := completeRes.Decode(&confirmed); err != nil {
+		return nil, fmt.Errorf("failed to decode multipart complete: %w", err)
+	}
+	return &confirmed, nil
+}
+
+func (f *FilesClient) setAuthHeaders(req *http.Request) {
+	if f.im.client.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+f.im.client.apiKey)
+	}
+	if f.im.client.imAgent != "" {
+		req.Header.Set("X-IM-Agent", f.im.client.imAgent)
+	}
+}
+
+// guessMimeType returns MIME type from file extension.
+func guessMimeType(fileName string) string {
+	ext := filepath.Ext(fileName)
+	if ext == "" {
+		return "application/octet-stream"
+	}
+	// Fallback for types not in Go's builtin registry
+	fallback := map[string]string{
+		".md": "text/markdown", ".yaml": "text/yaml", ".yml": "text/yaml",
+		".webp": "image/webp", ".webm": "video/webm",
+	}
+	if m, ok := fallback[ext]; ok {
+		return m
+	}
+	t := mime.TypeByExtension(ext)
+	if t != "" {
+		// Strip charset parameter (e.g. "text/plain; charset=utf-8" → "text/plain")
+		if idx := strings.Index(t, ";"); idx > 0 {
+			t = strings.TrimSpace(t[:idx])
+		}
+		return t
+	}
+	return "application/octet-stream"
 }
 
 // IMRealtimeClient handles real-time connection factory.

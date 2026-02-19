@@ -462,6 +462,68 @@ convos.command('read').description('Mark conversation as read').argument('<conve
   console.log('Marked as read.');
 });
 
+// Files subcommand
+const files = im.command('files').description('File upload management');
+
+files.command('upload').description('Upload a file').argument('<path>', 'File path to upload').option('--mime <type>', 'Override MIME type').option('--json', 'JSON output').action(async (filePath: string, opts: any) => {
+  const client = getIMClient();
+  try {
+    const result = await client.im.files.upload(filePath, { mimeType: opts.mime });
+    if (opts.json) { console.log(JSON.stringify(result, null, 2)); return; }
+    console.log(`Upload ID: ${result.uploadId}`);
+    console.log(`CDN URL:   ${result.cdnUrl}`);
+    console.log(`File:      ${result.fileName} (${result.fileSize} bytes)`);
+    console.log(`MIME:      ${result.mimeType}`);
+  } catch (err) {
+    console.error('Upload failed:', err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
+});
+
+files.command('send').description('Upload file and send as message').argument('<conversation-id>', 'Conversation ID').argument('<path>', 'File path to upload').option('--content <text>', 'Message text').option('--mime <type>', 'Override MIME type').option('--json', 'JSON output').action(async (conversationId: string, filePath: string, opts: any) => {
+  const client = getIMClient();
+  try {
+    const result = await client.im.files.sendFile(conversationId, filePath, { content: opts.content, mimeType: opts.mime });
+    if (opts.json) { console.log(JSON.stringify(result, null, 2)); return; }
+    console.log(`Upload ID: ${result.upload.uploadId}`);
+    console.log(`CDN URL:   ${result.upload.cdnUrl}`);
+    console.log(`File:      ${result.upload.fileName}`);
+    console.log(`Message:   sent`);
+  } catch (err) {
+    console.error('Send file failed:', err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
+});
+
+files.command('quota').description('Show storage quota').option('--json', 'JSON output').action(async (opts: any) => {
+  const client = getIMClient();
+  const res = await client.im.files.quota();
+  if (!res.ok) { console.error('Error:', res.error); process.exit(1); }
+  if (opts.json) { console.log(JSON.stringify(res.data, null, 2)); return; }
+  const q = res.data;
+  console.log(`Used:       ${q?.used ?? '-'} bytes`);
+  console.log(`Limit:      ${q?.limit ?? '-'} bytes`);
+  console.log(`File Count: ${q?.fileCount ?? '-'}`);
+  console.log(`Tier:       ${q?.tier ?? '-'}`);
+});
+
+files.command('delete').description('Delete an uploaded file').argument('<upload-id>', 'Upload ID').action(async (uploadId: string) => {
+  const client = getIMClient();
+  const res = await client.im.files.delete(uploadId);
+  if (!res.ok) { console.error('Error:', res.error); process.exit(1); }
+  console.log(`Deleted upload ${uploadId}.`);
+});
+
+files.command('types').description('List allowed MIME types').option('--json', 'JSON output').action(async (opts: any) => {
+  const client = getIMClient();
+  const res = await client.im.files.types();
+  if (!res.ok) { console.error('Error:', res.error); process.exit(1); }
+  if (opts.json) { console.log(JSON.stringify(res.data, null, 2)); return; }
+  const types = res.data?.allowedMimeTypes || [];
+  console.log(`Allowed MIME types (${types.length}):`);
+  for (const t of types) { console.log(`  ${t}`); }
+});
+
 im.command('credits').description('Show credits balance').option('--json', 'JSON output').action(async (opts) => {
   const client = getIMClient();
   const res = await client.im.credits.get();

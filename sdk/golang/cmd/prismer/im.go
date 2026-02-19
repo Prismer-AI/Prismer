@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -57,6 +59,21 @@ var (
 	// im transactions
 	imTransactionsLimit int
 	imTransactionsJSON  bool
+
+	// im files upload
+	imFilesUploadMime string
+	imFilesUploadJSON bool
+
+	// im files send
+	imFilesSendContent string
+	imFilesSendMime    string
+	imFilesSendJSON    bool
+
+	// im files quota
+	imFilesQuotaJSON bool
+
+	// im files types
+	imFilesTypesJSON bool
 )
 
 // ============================================================================
@@ -705,6 +722,210 @@ var imTransactionsCmd = &cobra.Command{
 }
 
 // ============================================================================
+// im files (parent command)
+// ============================================================================
+
+var imFilesCmd = &cobra.Command{
+	Use:   "files",
+	Short: "File upload management",
+	Long:  "Upload, send, and manage files in IM conversations.",
+}
+
+// ============================================================================
+// im files upload
+// ============================================================================
+
+var imFilesUploadCmd = &cobra.Command{
+	Use:   "upload <path>",
+	Short: "Upload a file",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		filePath := args[0]
+		client := getIMClient()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		var opts *prismer.UploadOptions
+		if imFilesUploadMime != "" {
+			opts = &prismer.UploadOptions{MimeType: imFilesUploadMime}
+		}
+
+		result, err := client.IM().Files.UploadFile(ctx, filePath, opts)
+		if err != nil {
+			return fmt.Errorf("upload failed: %w", err)
+		}
+
+		if imFilesUploadJSON {
+			b, _ := json.MarshalIndent(result, "", "  ")
+			fmt.Println(string(b))
+			return nil
+		}
+
+		fmt.Printf("Upload ID: %s\n", result.UploadID)
+		fmt.Printf("CDN URL:   %s\n", result.CdnURL)
+		fmt.Printf("File:      %s (%d bytes)\n", result.FileName, result.FileSize)
+		fmt.Printf("MIME:      %s\n", result.MimeType)
+		return nil
+	},
+}
+
+// ============================================================================
+// im files send
+// ============================================================================
+
+var imFilesSendCmd = &cobra.Command{
+	Use:   "send <conversation-id> <path>",
+	Short: "Upload file and send as message",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		conversationID, filePath := args[0], args[1]
+		client := getIMClient()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to read file: %w", err)
+		}
+
+		opts := &prismer.SendFileOptions{
+			FileName: filepath.Base(filePath),
+			Content:  imFilesSendContent,
+		}
+		if imFilesSendMime != "" {
+			opts.MimeType = imFilesSendMime
+		}
+
+		result, err := client.IM().Files.SendFile(ctx, conversationID, data, opts)
+		if err != nil {
+			return fmt.Errorf("send file failed: %w", err)
+		}
+
+		if imFilesSendJSON {
+			b, _ := json.MarshalIndent(result, "", "  ")
+			fmt.Println(string(b))
+			return nil
+		}
+
+		fmt.Printf("Upload ID: %s\n", result.Upload.UploadID)
+		fmt.Printf("CDN URL:   %s\n", result.Upload.CdnURL)
+		fmt.Printf("File:      %s\n", result.Upload.FileName)
+		fmt.Println("Message:   sent")
+		return nil
+	},
+}
+
+// ============================================================================
+// im files quota
+// ============================================================================
+
+var imFilesQuotaCmd = &cobra.Command{
+	Use:   "quota",
+	Short: "Show storage quota",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client := getIMClient()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		result, err := client.IM().Files.Quota(ctx)
+		if err != nil {
+			return fmt.Errorf("request failed: %w", err)
+		}
+		if !result.OK {
+			return imError(result)
+		}
+
+		if imFilesQuotaJSON {
+			fmt.Println(string(result.Data))
+			return nil
+		}
+
+		var quota prismer.IMFileQuota
+		if err := result.Decode(&quota); err != nil {
+			return fmt.Errorf("failed to decode response: %w", err)
+		}
+
+		fmt.Printf("Used:       %d bytes\n", quota.Used)
+		fmt.Printf("Limit:      %d bytes\n", quota.Limit)
+		fmt.Printf("File Count: %d\n", quota.FileCount)
+		fmt.Printf("Tier:       %s\n", quota.Tier)
+		return nil
+	},
+}
+
+// ============================================================================
+// im files delete
+// ============================================================================
+
+var imFilesDeleteCmd = &cobra.Command{
+	Use:   "delete <upload-id>",
+	Short: "Delete an uploaded file",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		uploadID := args[0]
+		client := getIMClient()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		result, err := client.IM().Files.Delete(ctx, uploadID)
+		if err != nil {
+			return fmt.Errorf("request failed: %w", err)
+		}
+		if !result.OK {
+			return imError(result)
+		}
+
+		fmt.Printf("Deleted upload %s.\n", uploadID)
+		return nil
+	},
+}
+
+// ============================================================================
+// im files types
+// ============================================================================
+
+var imFilesTypesCmd = &cobra.Command{
+	Use:   "types",
+	Short: "List allowed MIME types",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client := getIMClient()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		result, err := client.IM().Files.Types(ctx)
+		if err != nil {
+			return fmt.Errorf("request failed: %w", err)
+		}
+		if !result.OK {
+			return imError(result)
+		}
+
+		if imFilesTypesJSON {
+			fmt.Println(string(result.Data))
+			return nil
+		}
+
+		var data struct {
+			AllowedMimeTypes []string `json:"allowedMimeTypes"`
+		}
+		if err := result.Decode(&data); err != nil {
+			return fmt.Errorf("failed to decode response: %w", err)
+		}
+
+		fmt.Printf("Allowed MIME types (%d):\n", len(data.AllowedMimeTypes))
+		for _, t := range data.AllowedMimeTypes {
+			fmt.Printf("  %s\n", t)
+		}
+		return nil
+	},
+}
+
+// ============================================================================
 // Helper
 // ============================================================================
 
@@ -764,6 +985,28 @@ func init() {
 	imTransactionsCmd.Flags().IntVarP(&imTransactionsLimit, "limit", "n", 0, "Maximum number of transactions to return")
 	imTransactionsCmd.Flags().BoolVar(&imTransactionsJSON, "json", false, "Output raw JSON")
 
+	// im files upload
+	imFilesUploadCmd.Flags().StringVar(&imFilesUploadMime, "mime", "", "Override MIME type")
+	imFilesUploadCmd.Flags().BoolVar(&imFilesUploadJSON, "json", false, "Output raw JSON")
+
+	// im files send
+	imFilesSendCmd.Flags().StringVar(&imFilesSendContent, "content", "", "Message text")
+	imFilesSendCmd.Flags().StringVar(&imFilesSendMime, "mime", "", "Override MIME type")
+	imFilesSendCmd.Flags().BoolVar(&imFilesSendJSON, "json", false, "Output raw JSON")
+
+	// im files quota
+	imFilesQuotaCmd.Flags().BoolVar(&imFilesQuotaJSON, "json", false, "Output raw JSON")
+
+	// im files types
+	imFilesTypesCmd.Flags().BoolVar(&imFilesTypesJSON, "json", false, "Output raw JSON")
+
+	// Wire up files sub-commands.
+	imFilesCmd.AddCommand(imFilesUploadCmd)
+	imFilesCmd.AddCommand(imFilesSendCmd)
+	imFilesCmd.AddCommand(imFilesQuotaCmd)
+	imFilesCmd.AddCommand(imFilesDeleteCmd)
+	imFilesCmd.AddCommand(imFilesTypesCmd)
+
 	// Wire up groups sub-commands.
 	imGroupsCmd.AddCommand(imGroupsListCmd)
 	imGroupsCmd.AddCommand(imGroupsCreateCmd)
@@ -783,6 +1026,7 @@ func init() {
 	imCmd.AddCommand(imContactsCmd)
 	imCmd.AddCommand(imGroupsCmd)
 	imCmd.AddCommand(imConversationsCmd)
+	imCmd.AddCommand(imFilesCmd)
 	imCmd.AddCommand(imCreditsCmd)
 	imCmd.AddCommand(imTransactionsCmd)
 

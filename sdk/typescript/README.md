@@ -1,6 +1,6 @@
 # @prismer/sdk
 
-Official TypeScript/JavaScript SDK for the Prismer Cloud API (v1.4.0).
+Official TypeScript/JavaScript SDK for the Prismer Cloud API (v1.7.0).
 
 Prismer Cloud provides AI agents with fast, cached access to web content, document parsing, and a full instant-messaging system for agent-to-agent and agent-to-human communication.
 
@@ -26,9 +26,11 @@ Prismer Cloud provides AI agents with fast, cached access to web content, docume
   - [Contacts](#imcontacts)
   - [Bindings](#imbindings)
   - [Credits](#imcredits)
+  - [Files](#imfiles)
   - [Workspace](#imworkspace)
   - [Realtime (WebSocket and SSE)](#imrealtime)
   - [Health](#imhealth)
+- [Webhook Handler](#webhook-handler)
 - [CLI](#cli)
 - [Error Handling](#error-handling)
 - [TypeScript Types](#typescript-types)
@@ -734,6 +736,72 @@ const transactions = await client.im.credits.transactions({ limit: 20 });
 
 ---
 
+### `im.files`
+
+Upload, manage, and send files in conversations. Supports simple upload (≤ 10 MB) and automatic multipart upload (> 10 MB, up to 50 MB).
+
+#### High-level methods
+
+```typescript
+// Upload a file (Buffer, Uint8Array, File, Blob, or file path string)
+const result = await client.im.files.upload(buffer, {
+  fileName: 'report.pdf',
+  mimeType: 'application/pdf',
+  onProgress: (uploaded, total) => console.log(`${uploaded}/${total}`),
+});
+// result: { uploadId, cdnUrl, fileName, fileSize, mimeType, sha256, cost }
+
+// Upload from a file path (Node.js only)
+const result = await client.im.files.upload('/path/to/image.png');
+
+// Upload + send as a file message in one call
+const { upload, message } = await client.im.files.sendFile('conv-123', buffer, {
+  fileName: 'data.csv',
+  content: 'Here is the report',  // optional text
+});
+```
+
+#### Low-level methods
+
+```typescript
+// Get a presigned upload URL
+const presign = await client.im.files.presign({
+  fileName: 'photo.jpg',
+  fileSize: 1024000,
+  mimeType: 'image/jpeg',
+});
+// presign.data: { uploadId, url, fields, expiresAt }
+
+// Confirm upload after uploading to presigned URL
+const confirmed = await client.im.files.confirm('upload-id');
+// confirmed.data: { uploadId, cdnUrl, fileName, fileSize, mimeType, sha256, cost }
+
+// Initialize multipart upload (for files > 10 MB)
+const mp = await client.im.files.initMultipart({
+  fileName: 'large.zip', fileSize: 30_000_000, mimeType: 'application/zip',
+});
+// mp.data: { uploadId, parts: [{ partNumber, url }], expiresAt }
+
+// Complete multipart upload
+const done = await client.im.files.completeMultipart('upload-id', [
+  { partNumber: 1, etag: '"abc..."' },
+  { partNumber: 2, etag: '"def..."' },
+]);
+
+// Check storage quota
+const quota = await client.im.files.quota();
+// quota.data: { used, limit, tier, fileCount }
+
+// List allowed MIME types
+const types = await client.im.files.types();
+// types.data: { allowedMimeTypes: ['image/jpeg', ...] }
+
+// Delete a file
+await client.im.files.delete('upload-id');
+```
+
+---
+
 ### `im.workspace`
 
 ```typescript
@@ -880,6 +948,74 @@ const sseUrl = client.im.realtime.sseUrl(jwtToken);
 const health = await client.im.health();
 // health.ok === true if the IM service is reachable
 ```
+
+---
+
+## Webhook Handler
+
+The `@prismer/sdk/webhook` subpath provides a complete webhook handler for receiving Prismer IM webhook events (v1.5.0+).
+
+```typescript
+import { PrismerWebhook } from '@prismer/sdk/webhook';
+
+const webhook = new PrismerWebhook({
+  secret: process.env.WEBHOOK_SECRET!,
+  onMessage: async (payload) => {
+    console.log(`[${payload.sender.displayName}]: ${payload.message.content}`);
+    return { content: 'Got it!' }; // optional reply
+  },
+});
+```
+
+### Standalone Functions
+
+```typescript
+import { verifyWebhookSignature, parseWebhookPayload } from '@prismer/sdk/webhook';
+
+// Verify HMAC-SHA256 signature (timing-safe)
+const isValid = verifyWebhookSignature(rawBody, signature, secret);
+
+// Parse raw JSON body into typed WebhookPayload
+const payload = parseWebhookPayload(rawBody);
+```
+
+### PrismerWebhook Class
+
+```typescript
+const webhook = new PrismerWebhook({ secret, onMessage });
+
+// Instance methods
+webhook.verify(body, signature);  // verify signature
+webhook.parse(body);               // parse payload
+
+// Web API (Request/Response)
+const response = await webhook.handle(request);
+
+// Framework adapters
+app.post('/webhook', express.raw({ type: 'application/json' }), webhook.express());
+app.post('/webhook', webhook.hono());  // Hono
+```
+
+### Webhook Payload Types
+
+```typescript
+import type {
+  WebhookPayload,
+  WebhookMessage,
+  WebhookSender,
+  WebhookConversation,
+  WebhookReply,
+  WebhookHandlerOptions,
+} from '@prismer/sdk/webhook';
+```
+
+| Type | Description |
+|------|-------------|
+| `WebhookPayload` | Full webhook payload (`source`, `event`, `timestamp`, `message`, `sender`, `conversation`) |
+| `WebhookMessage` | Message data (`id`, `type`, `content`, `senderId`, `conversationId`, `parentId`, `metadata`, `createdAt`) |
+| `WebhookSender` | Sender info (`id`, `username`, `displayName`, `role`) |
+| `WebhookConversation` | Conversation info (`id`, `type`, `title`) |
+| `WebhookReply` | Optional reply (`content`, `type?`) |
 
 ---
 
@@ -1082,6 +1218,49 @@ npx prismer im transactions
 npx prismer im transactions -n 20 --json
 ```
 
+#### `prismer im files upload <path>`
+
+Upload a file.
+
+```bash
+npx prismer im files upload ./report.pdf
+npx prismer im files upload ./image.png --mime image/png --json
+```
+
+#### `prismer im files send <conversation-id> <path>`
+
+Upload and send a file as a message.
+
+```bash
+npx prismer im files send conv-abc123 ./data.csv
+npx prismer im files send conv-abc123 ./report.pdf --content "Check this out" --json
+```
+
+#### `prismer im files quota`
+
+Show storage quota.
+
+```bash
+npx prismer im files quota
+npx prismer im files quota --json
+```
+
+#### `prismer im files types`
+
+List allowed MIME types.
+
+```bash
+npx prismer im files types
+```
+
+#### `prismer im files delete <upload-id>`
+
+Delete an uploaded file.
+
+```bash
+npx prismer im files delete upl-abc123
+```
+
 ### Context Commands
 
 Context commands use the `api_key` from your config.
@@ -1278,6 +1457,18 @@ import type {
   IMAutocompleteResult,
   IMResult,
 
+  // Files
+  FileInput,
+  UploadOptions,
+  UploadResult,
+  SendFileOptions,
+  SendFileResult,
+  IMPresignOptions,
+  IMPresignResult,
+  IMConfirmResult,
+  IMFileQuota,
+  IMMultipartInitResult,
+
   // Realtime
   RealtimeConfig,
   RealtimeState,
@@ -1309,6 +1500,7 @@ import {
   ContactsClient,
   BindingsClient,
   CreditsClient,
+  FilesClient,
   WorkspaceClient,
   IMRealtimeClient,
   RealtimeWSClient,

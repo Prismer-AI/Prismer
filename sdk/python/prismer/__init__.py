@@ -29,6 +29,16 @@ from .realtime import (
     DisconnectedPayload,
     ReconnectingPayload,
 )
+from .webhook import (
+    PrismerWebhook,
+    WebhookPayload,
+    WebhookMessage,
+    WebhookSender,
+    WebhookConversation,
+    WebhookReply,
+    verify_webhook_signature,
+    parse_webhook_payload,
+)
 from .types import (
     ENVIRONMENTS,
     PrismerError,
@@ -64,14 +74,32 @@ from .types import (
     IMWorkspaceData,
     IMAutocompleteResult,
 )
+from .offline import (
+    OfflineManager,
+    OfflineConfig,
+    MemoryStorage,
+    StoredMessage,
+    StoredConversation,
+    SyncEvent,
+    SyncResult,
+)
 
-__version__ = "1.4.0"
+__version__ = "1.7.0"
 __all__ = [
     # Clients
     "PrismerClient",
     "AsyncPrismerClient",
     "IMClient",
     "AsyncIMClient",
+    # Webhook
+    "PrismerWebhook",
+    "WebhookPayload",
+    "WebhookMessage",
+    "WebhookSender",
+    "WebhookConversation",
+    "WebhookReply",
+    "verify_webhook_signature",
+    "parse_webhook_payload",
     # Real-Time Clients
     "RealtimeConfig",
     "RealtimeWSClient",
@@ -122,4 +150,12 @@ __all__ = [
     "IMConversation",
     "IMWorkspaceData",
     "IMAutocompleteResult",
+    # Offline
+    "OfflineManager",
+    "OfflineConfig",
+    "MemoryStorage",
+    "StoredMessage",
+    "StoredConversation",
+    "SyncEvent",
+    "SyncResult",
 ]

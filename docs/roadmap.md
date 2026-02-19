@@ -20,6 +20,19 @@
 - npm package extraction
 - Documentation site
 
+### ✅ SDK v1.5.0 — Webhook Handler
+
+SDK v1.5.0 adds webhook handling across all three SDK languages (TypeScript, Python, Go).
+
+| Feature | TS | Python | Go |
+|---------|----|----|-----|
+| HMAC-SHA256 signature verification | `@prismer/sdk/webhook` | `prismer.webhook` | `prismer` package |
+| Typed webhook payload parsing | ✅ | ✅ | ✅ |
+| Framework adapters | Express, Hono | ASGI, Flask, FastAPI | net/http |
+| Unit + integration tests | 37 | 29 | 30 |
+
+See [TODO.md](./TODO.md) for design details and API reference.
+
 ### 🔮 Future
 
 - Collaborative research workspaces

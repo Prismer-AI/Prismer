@@ -23,6 +23,7 @@
 
 import { RealtimeWSClient, RealtimeSSEClient } from './realtime';
 import type { RealtimeConfig } from './realtime';
+import { OfflineManager } from './offline';
 
 // Re-export all types
 export * from './types';
@@ -43,6 +44,14 @@ export {
   type DisconnectedPayload,
   type ReconnectingPayload,
 } from './realtime';
+
+// Re-export storage and offline modules
+export { MemoryStorage, IndexedDBStorage, SQLiteStorage } from './storage';
+export type { StorageAdapter, StoredMessage, StoredConversation, StoredContact, OutboxOperation } from './storage';
+export { OfflineManager, AttachmentQueue } from './offline';
+export type { SyncEvent, SyncResult, OfflineEventMap, OfflineEventType, QueuedAttachment } from './offline';
+export { TabCoordinator } from './multitab';
+export { E2EEncryption } from './encryption';
 
 import type {
   PrismerConfig,
@@ -78,6 +87,16 @@ import type {
   IMWorkspaceInitOptions,
   IMWorkspaceInitGroupOptions,
   IMAutocompleteResult,
+  IMPresignOptions,
+  IMPresignResult,
+  IMConfirmResult,
+  IMFileQuota,
+  FileInput,
+  UploadOptions,
+  UploadResult,
+  SendFileOptions,
+  SendFileResult,
+  IMMultipartInitResult,
   IMResult,
   RequestFn,
 } from './types';
@@ -125,8 +144,8 @@ export class DirectClient {
   /** Get direct message history with a user */
   async getMessages(userId: string, options?: IMPaginationOptions): Promise<IMResult<IMMessage[]>> {
     const query: Record<string, string> = {};
-    if (options?.limit) query.limit = String(options.limit);
-    if (options?.offset) query.offset = String(options.offset);
+    if (options?.limit != null) query.limit = String(options.limit);
+    if (options?.offset != null) query.offset = String(options.offset);
     return this._r('GET', `/api/im/direct/${userId}/messages`, undefined, query);
   }
 }
@@ -163,8 +182,8 @@ export class GroupsClient {
   /** Get group message history */
   async getMessages(groupId: string, options?: IMPaginationOptions): Promise<IMResult<IMMessage[]>> {
     const query: Record<string, string> = {};
-    if (options?.limit) query.limit = String(options.limit);
-    if (options?.offset) query.offset = String(options.offset);
+    if (options?.limit != null) query.limit = String(options.limit);
+    if (options?.offset != null) query.offset = String(options.offset);
     return this._r('GET', `/api/im/groups/${groupId}/messages`, undefined, query);
   }
 
@@ -224,8 +243,8 @@ export class MessagesClient {
   /** Get message history for a conversation */
   async getHistory(conversationId: string, options?: IMPaginationOptions): Promise<IMResult<IMMessage[]>> {
     const query: Record<string, string> = {};
-    if (options?.limit) query.limit = String(options.limit);
-    if (options?.offset) query.offset = String(options.offset);
+    if (options?.limit != null) query.limit = String(options.limit);
+    if (options?.offset != null) query.offset = String(options.offset);
     return this._r('GET', `/api/im/messages/${conversationId}`, undefined, query);
   }
 
@@ -295,8 +314,8 @@ export class CreditsClient {
   /** Get credit transaction history */
   async transactions(options?: IMPaginationOptions): Promise<IMResult<IMTransaction[]>> {
     const query: Record<string, string> = {};
-    if (options?.limit) query.limit = String(options.limit);
-    if (options?.offset) query.offset = String(options.offset);
+    if (options?.limit != null) query.limit = String(options.limit);
+    if (options?.offset != null) query.offset = String(options.offset);
     return this._r('GET', '/api/im/credits/transactions', undefined, query);
   }
 }
@@ -330,6 +349,248 @@ export class WorkspaceClient {
     const q: Record<string, string> = { conversationId };
     if (query) q.q = query;
     return this._r('GET', '/api/im/workspace/mentions/autocomplete', undefined, q);
+  }
+}
+
+/** Map file extension to MIME type (no external deps) */
+function guessMimeType(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  const map: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+    webp: 'image/webp', svg: 'image/svg+xml', ico: 'image/x-icon', bmp: 'image/bmp',
+    pdf: 'application/pdf', doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    txt: 'text/plain', csv: 'text/csv', html: 'text/html', css: 'text/css',
+    js: 'text/javascript', json: 'application/json', xml: 'application/xml',
+    md: 'text/markdown', yaml: 'text/yaml', yml: 'text/yaml',
+    zip: 'application/zip', gz: 'application/gzip', tar: 'application/x-tar',
+    mp3: 'audio/mpeg', wav: 'audio/wav', mp4: 'video/mp4', webm: 'video/webm',
+  };
+  return map[ext] || 'application/octet-stream';
+}
+
+/** File upload management (presign → upload → confirm) */
+export class FilesClient {
+  constructor(
+    private _r: RequestFn,
+    private _baseUrl: string,
+    private _fetchFn: typeof fetch,
+    private _getAuthHeaders: () => Record<string, string>,
+  ) {}
+
+  /** Get a presigned upload URL */
+  async presign(options: IMPresignOptions): Promise<IMResult<IMPresignResult>> {
+    return this._r('POST', '/api/im/files/presign', options);
+  }
+
+  /** Confirm an uploaded file (triggers validation + CDN activation) */
+  async confirm(uploadId: string): Promise<IMResult<IMConfirmResult>> {
+    return this._r('POST', '/api/im/files/confirm', { uploadId });
+  }
+
+  /** Get storage quota */
+  async quota(): Promise<IMResult<IMFileQuota>> {
+    return this._r('GET', '/api/im/files/quota');
+  }
+
+  /** Delete a file */
+  async delete(uploadId: string): Promise<IMResult<void>> {
+    return this._r('DELETE', `/api/im/files/${uploadId}`);
+  }
+
+  /** List allowed MIME types */
+  async types(): Promise<IMResult<{ allowedMimeTypes: string[] }>> {
+    return this._r('GET', '/api/im/files/types');
+  }
+
+  /** Initialize a multipart upload (for files > 10 MB) */
+  async initMultipart(opts: { fileName: string; fileSize: number; mimeType: string }): Promise<IMResult<IMMultipartInitResult>> {
+    return this._r('POST', '/api/im/files/upload/init', opts);
+  }
+
+  /** Complete a multipart upload */
+  async completeMultipart(uploadId: string, parts: Array<{ partNumber: number; etag: string }>): Promise<IMResult<IMConfirmResult>> {
+    return this._r('POST', '/api/im/files/upload/complete', { uploadId, parts });
+  }
+
+  // --------------------------------------------------------------------------
+  // High-level convenience methods
+  // --------------------------------------------------------------------------
+
+  /**
+   * Upload a file (full lifecycle: presign → upload → confirm).
+   *
+   * @param input - File, Blob, Buffer, Uint8Array, or file path (Node.js string)
+   * @param opts  - Optional fileName, mimeType, onProgress
+   * @returns Confirmed upload result with CDN URL
+   */
+  async upload(input: FileInput, opts?: UploadOptions): Promise<UploadResult> {
+    // 1. Resolve input → bytes + fileName + fileSize
+    let bytes: Uint8Array;
+    let fileName: string;
+
+    if (typeof input === 'string') {
+      // Node.js file path
+      const fs = await import('fs');
+      const path = await import('path');
+      const buf = await fs.promises.readFile(input);
+      bytes = new Uint8Array(buf);
+      fileName = opts?.fileName || path.basename(input);
+    } else if (typeof Blob !== 'undefined' && input instanceof Blob) {
+      // File extends Blob, so this covers both
+      const ab = await input.arrayBuffer();
+      bytes = new Uint8Array(ab);
+      fileName = opts?.fileName || (input instanceof File ? input.name : '');
+      if (!fileName) throw new Error('fileName is required when uploading Blob without name');
+    } else if (input instanceof Uint8Array) {
+      bytes = input;
+      fileName = opts?.fileName || '';
+      if (!fileName) throw new Error('fileName is required when uploading Buffer or Uint8Array');
+    } else {
+      throw new Error('Unsupported input type');
+    }
+
+    const fileSize = bytes.byteLength;
+
+    // 2. Detect MIME
+    const mimeType = opts?.mimeType || guessMimeType(fileName);
+
+    // 3. Client-side size check
+    if (fileSize > 50 * 1024 * 1024) {
+      throw new Error('File exceeds maximum size of 50 MB');
+    }
+
+    // 4. Simple upload (≤ 10 MB) or multipart (> 10 MB)
+    if (fileSize <= 10 * 1024 * 1024) {
+      return this._uploadSimple(bytes, fileName, fileSize, mimeType, opts?.onProgress);
+    }
+    return this._uploadMultipart(bytes, fileName, fileSize, mimeType, opts?.onProgress);
+  }
+
+  /**
+   * Upload a file and send it as a message in one call.
+   *
+   * @param conversationId - Target conversation
+   * @param input          - File input (same as upload())
+   * @param opts           - Upload options + optional message content/parentId
+   */
+  async sendFile(conversationId: string, input: FileInput, opts?: SendFileOptions): Promise<SendFileResult> {
+    const uploaded = await this.upload(input, opts);
+
+    const msgRes: IMResult = await this._r('POST', `/api/im/messages/${conversationId}`, {
+      content: opts?.content || uploaded.fileName,
+      type: 'file',
+      metadata: {
+        uploadId: uploaded.uploadId,
+        fileUrl: uploaded.cdnUrl,
+        fileName: uploaded.fileName,
+        fileSize: uploaded.fileSize,
+        mimeType: uploaded.mimeType,
+      },
+      parentId: opts?.parentId,
+    });
+
+    if (!msgRes.ok) {
+      throw new Error(msgRes.error?.message || 'Failed to send file message');
+    }
+    return { upload: uploaded, message: msgRes.data };
+  }
+
+  // --------------------------------------------------------------------------
+  // Private upload helpers
+  // --------------------------------------------------------------------------
+
+  private async _uploadSimple(
+    bytes: Uint8Array, fileName: string, fileSize: number, mimeType: string,
+    onProgress?: (uploaded: number, total: number) => void,
+  ): Promise<UploadResult> {
+    // Presign
+    const presignRes = await this.presign({ fileName, fileSize, mimeType });
+    if (!presignRes.ok || !presignRes.data) {
+      throw new Error(presignRes.error?.message || 'Presign failed');
+    }
+    const { uploadId, url, fields } = presignRes.data;
+
+    // Build FormData
+    const formData = new FormData();
+    const isS3 = url.startsWith('http');
+    const uploadUrl = isS3 ? url : `${this._baseUrl}${url}`;
+
+    if (isS3) {
+      for (const [k, v] of Object.entries(fields)) formData.append(k, v);
+    }
+    const ab = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(ab).set(bytes);
+    formData.append('file', new Blob([ab], { type: mimeType }), fileName);
+
+    // Upload
+    const headers: Record<string, string> = {};
+    if (!isS3) Object.assign(headers, this._getAuthHeaders());
+
+    const resp = await this._fetchFn(uploadUrl, { method: 'POST', body: formData, headers });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Upload failed (${resp.status}): ${text}`);
+    }
+
+    onProgress?.(fileSize, fileSize);
+
+    // Confirm
+    const confirmRes = await this.confirm(uploadId);
+    if (!confirmRes.ok || !confirmRes.data) {
+      throw new Error(confirmRes.error?.message || 'Confirm failed');
+    }
+    return confirmRes.data;
+  }
+
+  private async _uploadMultipart(
+    bytes: Uint8Array, fileName: string, fileSize: number, mimeType: string,
+    onProgress?: (uploaded: number, total: number) => void,
+  ): Promise<UploadResult> {
+    // Init multipart
+    const initRes = await this.initMultipart({ fileName, fileSize, mimeType });
+    if (!initRes.ok || !initRes.data) {
+      throw new Error(initRes.error?.message || 'Multipart init failed');
+    }
+    const { uploadId, parts: partUrls } = initRes.data;
+
+    // Upload each part
+    const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB
+    const completedParts: Array<{ partNumber: number; etag: string }> = [];
+    let uploaded = 0;
+
+    for (const part of partUrls) {
+      const start = (part.partNumber - 1) * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, fileSize);
+      const chunk = bytes.slice(start, end);
+
+      const isS3 = part.url.startsWith('http');
+      const partUrl = isS3 ? part.url : `${this._baseUrl}${part.url}`;
+      const headers: Record<string, string> = { 'Content-Type': mimeType };
+      if (!isS3) Object.assign(headers, this._getAuthHeaders());
+
+      const resp = await this._fetchFn(partUrl, { method: 'PUT', body: chunk, headers });
+      if (!resp.ok) {
+        throw new Error(`Part ${part.partNumber} upload failed (${resp.status})`);
+      }
+
+      const etag = resp.headers.get('ETag') || `"part-${part.partNumber}"`;
+      completedParts.push({ partNumber: part.partNumber, etag });
+
+      uploaded += chunk.byteLength;
+      onProgress?.(uploaded, fileSize);
+    }
+
+    // Complete
+    const completeRes = await this.completeMultipart(uploadId, completedParts);
+    if (!completeRes.ok || !completeRes.data) {
+      throw new Error(completeRes.error?.message || 'Multipart complete failed');
+    }
+    return completeRes.data;
   }
 }
 
@@ -373,9 +634,18 @@ export class IMClient {
   readonly bindings: BindingsClient;
   readonly credits: CreditsClient;
   readonly workspace: WorkspaceClient;
+  readonly files: FilesClient;
   readonly realtime: IMRealtimeClient;
+  /** Offline manager (null if offline mode not enabled) */
+  readonly offline: OfflineManager | null;
 
-  constructor(request: RequestFn, wsBase: string) {
+  constructor(
+    request: RequestFn,
+    wsBase: string,
+    fetchFn: typeof fetch,
+    getAuthHeaders: () => Record<string, string>,
+    offlineManager?: OfflineManager | null,
+  ) {
     this.account = new AccountClient(request);
     this.direct = new DirectClient(request);
     this.groups = new GroupsClient(request);
@@ -385,7 +655,9 @@ export class IMClient {
     this.bindings = new BindingsClient(request);
     this.credits = new CreditsClient(request);
     this.workspace = new WorkspaceClient(request);
+    this.files = new FilesClient(request, wsBase, fetchFn, getAuthHeaders);
     this.realtime = new IMRealtimeClient(wsBase);
+    this.offline = offlineManager ?? null;
   }
 
   /** IM health check */
@@ -404,6 +676,7 @@ export class PrismerClient {
   private readonly timeout: number;
   private readonly fetchFn: typeof fetch;
   private readonly imAgent?: string;
+  private _offlineManager: OfflineManager | null = null;
 
   /** IM API sub-client */
   readonly im: IMClient;
@@ -420,10 +693,40 @@ export class PrismerClient {
     this.fetchFn = config.fetch || fetch;
     this.imAgent = config.imAgent;
 
+    // Initialize OfflineManager if offline config is provided
+    if (config.offline) {
+      this._offlineManager = new OfflineManager(
+        config.offline.storage,
+        (m, p, b, q) => this._request(m, p, b, q),
+        config.offline,
+      );
+      this._offlineManager.init().catch(err =>
+        console.warn('[PrismerSDK] Offline storage init failed:', err)
+      );
+    }
+
+    // IM requests go through OfflineManager when offline mode is enabled
+    const imRequest: RequestFn = this._offlineManager
+      ? <T>(m: string, p: string, b?: unknown, q?: Record<string, string>) =>
+          this._offlineManager!.dispatch<T>(m, p, b, q)
+      : <T>(m: string, p: string, b?: unknown, q?: Record<string, string>) =>
+          this._request<T>(m, p, b, q);
+
     this.im = new IMClient(
-      (method, path, body, query) => this._request(method, path, body, query),
+      imRequest,
       this.baseUrl,
+      this.fetchFn,
+      () => this._getAuthHeaders(),
+      this._offlineManager,
     );
+  }
+
+  /** Build auth headers for raw HTTP requests (used by file upload) */
+  private _getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (this.apiKey) headers['Authorization'] = `Bearer ${this.apiKey}`;
+    if (this.imAgent) headers['X-IM-Agent'] = this.imAgent;
+    return headers;
   }
 
   /**
@@ -432,6 +735,13 @@ export class PrismerClient {
    */
   setToken(token: string): void {
     this.apiKey = token;
+  }
+
+  /** Cleanup resources (offline manager, timers). Call when disposing the client. */
+  async destroy(): Promise<void> {
+    if (this._offlineManager) {
+      await this._offlineManager.destroy();
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -443,6 +753,7 @@ export class PrismerClient {
     path: string,
     body?: unknown,
     query?: Record<string, string>,
+    _isRetry?: boolean,
   ): Promise<T> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -470,6 +781,17 @@ export class PrismerClient {
 
       const response = await this.fetchFn(url, init);
       const data = await response.json();
+
+      // Auto-refresh JWT token on 401 (one attempt, skip if already retrying)
+      if (response.status === 401 && this.apiKey.startsWith('eyJ') && !_isRetry && !path.includes('/token/refresh')) {
+        try {
+          const refreshRes = await this._request<any>('POST', '/api/im/token/refresh', undefined, undefined, true);
+          if (refreshRes?.ok && refreshRes?.data?.token) {
+            this.apiKey = refreshRes.data.token;
+            return this._request<T>(method, path, body, query, true);
+          }
+        } catch { /* refresh failed, return original error */ }
+      }
 
       if (!response.ok) {
         const err = data.error || { code: 'HTTP_ERROR', message: `Request failed with status ${response.status}` };

@@ -631,6 +631,128 @@ def conversations_read(conversation_id):
         client.close()
 
 
+# --- Files sub-group ---
+@im.group("files")
+def im_files():
+    """File upload management."""
+    pass
+
+
+@im_files.command("upload")
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--mime", default=None, help="Override MIME type")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def files_upload(path, mime, as_json):
+    """Upload a file."""
+    client = _get_im_client()
+    try:
+        kwargs = {}
+        if mime:
+            kwargs["mime_type"] = mime
+        result = client.im.files.upload(path, **kwargs)
+        if as_json:
+            click.echo(json.dumps(result, indent=2))
+            return
+        click.echo(f"Upload ID: {result['uploadId']}")
+        click.echo(f"CDN URL:   {result['cdnUrl']}")
+        click.echo(f"File:      {result['fileName']} ({result['fileSize']} bytes)")
+        click.echo(f"MIME:      {result['mimeType']}")
+    except (ValueError, Exception) as e:
+        click.echo(f"Upload failed: {e}", err=True)
+        sys.exit(1)
+    finally:
+        client.close()
+
+
+@im_files.command("send")
+@click.argument("conversation_id")
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--content", default=None, help="Message text")
+@click.option("--mime", default=None, help="Override MIME type")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def files_send(conversation_id, path, content, mime, as_json):
+    """Upload file and send as message."""
+    client = _get_im_client()
+    try:
+        kwargs = {}
+        if content:
+            kwargs["content"] = content
+        if mime:
+            kwargs["mime_type"] = mime
+        result = client.im.files.send_file(conversation_id, path, **kwargs)
+        if as_json:
+            click.echo(json.dumps(result, indent=2))
+            return
+        click.echo(f"Upload ID: {result['upload']['uploadId']}")
+        click.echo(f"CDN URL:   {result['upload']['cdnUrl']}")
+        click.echo(f"File:      {result['upload']['fileName']}")
+        click.echo(f"Message:   sent")
+    except (ValueError, Exception) as e:
+        click.echo(f"Send file failed: {e}", err=True)
+        sys.exit(1)
+    finally:
+        client.close()
+
+
+@im_files.command("quota")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def files_quota(as_json):
+    """Show storage quota."""
+    client = _get_im_client()
+    try:
+        res = client.im.files.quota()
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        d = res.get("data", {})
+        if as_json:
+            click.echo(json.dumps(d, indent=2))
+            return
+        click.echo(f"Used:       {d.get('used', '-')} bytes")
+        click.echo(f"Limit:      {d.get('limit', '-')} bytes")
+        click.echo(f"File Count: {d.get('fileCount', '-')}")
+        click.echo(f"Tier:       {d.get('tier', '-')}")
+    finally:
+        client.close()
+
+
+@im_files.command("delete")
+@click.argument("upload_id")
+def files_delete(upload_id):
+    """Delete an uploaded file."""
+    client = _get_im_client()
+    try:
+        res = client.im.files.delete(upload_id)
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        click.echo(f"Deleted upload {upload_id}.")
+    finally:
+        client.close()
+
+
+@im_files.command("types")
+@click.option("--json", "as_json", is_flag=True, help="JSON output")
+def files_types(as_json):
+    """List allowed MIME types."""
+    client = _get_im_client()
+    try:
+        res = client.im.files.types()
+        if not res.get("ok"):
+            click.echo(f"Error: {res.get('error')}", err=True)
+            sys.exit(1)
+        d = res.get("data", {})
+        if as_json:
+            click.echo(json.dumps(d, indent=2))
+            return
+        types_list = d.get("allowedMimeTypes", [])
+        click.echo(f"Allowed MIME types ({len(types_list)}):")
+        for t in types_list:
+            click.echo(f"  {t}")
+    finally:
+        client.close()
+
+
 @im.command("credits")
 @click.option("--json", "as_json", is_flag=True, help="JSON output")
 def im_credits(as_json):

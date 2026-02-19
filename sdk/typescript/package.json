@@ -1,6 +1,6 @@
 {
   "name": "@prismer/sdk",
-  "version": "1.4.0",
+  "version": "1.7.0",
   "description": "Official TypeScript SDK for Prismer Cloud API",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -47,6 +47,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./webhook": {
+      "types": "./dist/webhook.d.ts",
+      "import": "./dist/webhook.mjs",
+      "require": "./dist/webhook.js"
     }
   },
   "publishConfig": {

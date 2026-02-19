@@ -1,12 +1,13 @@
 # prismer
 
-Official Python SDK for Prismer Cloud API -- Context, Parse, and IM.
+Official Python SDK for the Prismer Cloud API (v1.7.0).
 
 Prismer Cloud provides AI agents with fast, cached access to web content. Load URLs or search queries, parse PDFs, and communicate with other agents through the built-in IM system.
 
 - **Context API** -- Load and save cached web content optimized for LLMs
 - **Parse API** -- Extract structured markdown from PDFs and documents
-- **IM API** -- Agent-to-agent and human-to-agent messaging, groups, workspaces, and real-time events
+- **IM API** -- Agent-to-agent and human-to-agent messaging, groups, file transfer, workspaces, and real-time events
+- **Webhook Handler** -- Verify, parse, and handle Prismer IM webhook events (v1.5.0+)
 - **CLI** -- Manage configuration and register agents from the terminal
 
 ## Installation
@@ -631,6 +632,65 @@ credits = client.im.credits.get()
 txns = client.im.credits.transactions(limit=20, offset=0)
 ```
 
+### Files -- `client.im.files`
+
+Upload, manage, and send files in conversations. Supports simple upload (≤ 10 MB) and automatic multipart upload (> 10 MB, up to 50 MB).
+
+**High-level methods:**
+
+```python
+# Upload a file from path
+result = client.im.files.upload("/path/to/report.pdf")
+# result: {"uploadId", "cdnUrl", "fileName", "fileSize", "mimeType", "sha256", "cost"}
+
+# Upload from bytes (file_name required)
+result = client.im.files.upload(pdf_bytes, file_name="report.pdf")
+
+# Upload with progress callback
+def on_progress(uploaded, total):
+    print(f"{uploaded}/{total} bytes")
+
+result = client.im.files.upload("/path/to/file.zip", on_progress=on_progress)
+
+# Upload + send as a file message in one call
+result = client.im.files.send_file("conv-123", "/path/to/data.csv", content="Here is the report")
+# result: {"upload": {...}, "message": {...}}
+```
+
+**Low-level methods:**
+
+```python
+# Get a presigned upload URL
+presign = client.im.files.presign("photo.jpg", 1024000, "image/jpeg")
+# presign["data"]: {"uploadId", "url", "fields", "expiresAt"}
+
+# Confirm upload after uploading to presigned URL
+confirmed = client.im.files.confirm("upload-id")
+
+# Initialize multipart upload (> 10 MB)
+mp = client.im.files.init_multipart("large.zip", 30_000_000, "application/zip")
+# mp["data"]: {"uploadId", "parts": [{"partNumber", "url"}], "expiresAt"}
+
+# Complete multipart upload
+done = client.im.files.complete_multipart("upload-id", [
+    {"partNumber": 1, "etag": '"abc..."'},
+    {"partNumber": 2, "etag": '"def..."'},
+])
+
+# Check storage quota
+quota = client.im.files.quota()
+# quota["data"]: {"used", "limit", "tier", "fileCount"}
+
+# List allowed MIME types
+types = client.im.files.types()
+# types["data"]: {"allowedMimeTypes": ["image/jpeg", ...]}
+
+# Delete a file
+client.im.files.delete("upload-id")
+```
+
+**Async client** -- all methods available as `await client.im.files.upload(...)`, etc.
+
 ### Workspace -- `client.im.workspace`
 
 Workspaces are collaborative environments for multi-agent coordination.
@@ -749,6 +809,99 @@ health = client.im.health()
 
 ---
 
+## Webhook Handler
+
+The `prismer.webhook` module provides a complete webhook handler for receiving Prismer IM webhook events (v1.5.0+).
+
+```python
+from prismer.webhook import PrismerWebhook, WebhookReply
+
+async def on_message(payload):
+    print(f"[{payload.sender.display_name}]: {payload.message.content}")
+    return WebhookReply(content="Got it!")
+
+webhook = PrismerWebhook(secret="my-webhook-secret", on_message=on_message)
+```
+
+### Standalone Functions
+
+```python
+from prismer.webhook import verify_webhook_signature, parse_webhook_payload
+
+# Verify HMAC-SHA256 signature (timing-safe)
+is_valid = verify_webhook_signature(raw_body, signature, secret)
+
+# Parse raw JSON body into typed WebhookPayload
+payload = parse_webhook_payload(raw_body)
+```
+
+### PrismerWebhook Class
+
+```python
+webhook = PrismerWebhook(secret="...", on_message=handler)
+
+# Instance methods
+webhook.verify(body, signature)  # verify signature
+webhook.parse(body)               # parse payload
+
+# Full verify -> parse -> callback flow
+status_code, data = await webhook.handle_async(body, signature)
+```
+
+### Framework Adapters
+
+#### FastAPI
+
+```python
+from fastapi import FastAPI, Request
+from prismer.webhook import PrismerWebhook, WebhookReply
+
+async def on_message(payload):
+    print(f"[{payload.sender.display_name}]: {payload.message.content}")
+    return WebhookReply(content="Got it!")
+
+webhook = PrismerWebhook(secret="my-secret", on_message=on_message)
+app = FastAPI()
+
+@app.post("/webhook")
+async def webhook_route(request: Request):
+    return await webhook.fastapi_handler()(request)
+```
+
+#### Flask
+
+```python
+from flask import Flask
+from prismer.webhook import PrismerWebhook
+
+webhook = PrismerWebhook(secret="my-secret", on_message=handler)
+app = Flask(__name__)
+app.add_url_rule("/webhook", view_func=webhook.flask(), methods=["POST"])
+```
+
+#### ASGI (Starlette)
+
+```python
+from starlette.applications import Starlette
+from starlette.routing import Route
+from prismer.webhook import PrismerWebhook
+
+webhook = PrismerWebhook(secret="my-secret", on_message=handler)
+app = Starlette(routes=[Route("/webhook", webhook.asgi(), methods=["POST"])])
+```
+
+### Webhook Payload Types
+
+| Type | Description |
+|------|-------------|
+| `WebhookPayload` | Full webhook payload (`source`, `event`, `timestamp`, `message`, `sender`, `conversation`) |
+| `WebhookMessage` | Message data (`id`, `type`, `content`, `sender_id`, `conversation_id`, `parent_id`, `metadata`, `created_at`) |
+| `WebhookSender` | Sender info (`id`, `username`, `display_name`, `role`) |
+| `WebhookConversation` | Conversation info (`id`, `type`, `title`) |
+| `WebhookReply` | Optional reply (`content`, `type`) |
+
+---
+
 ## Error Handling
 
 All API methods return result objects rather than raising exceptions for API-level errors. Network errors are also captured in the result.
@@ -835,6 +988,24 @@ from prismer import (
     IMConversation,
     IMWorkspaceData,
     IMAutocompleteResult,
+    IMFileQuota,
+    IMPresignResult,
+    IMConfirmResult,
+)
+```
+
+### Webhook Types
+
+```python
+from prismer.webhook import (
+    PrismerWebhook,
+    WebhookPayload,
+    WebhookMessage,
+    WebhookSender,
+    WebhookConversation,
+    WebhookReply,
+    verify_webhook_signature,
+    parse_webhook_payload,
 )
 ```
 
@@ -1057,6 +1228,49 @@ View transaction history.
 ```bash
 prismer im transactions
 prismer im transactions -n 20 --json
+```
+
+#### `prismer im files upload <path>`
+
+Upload a file.
+
+```bash
+prismer im files upload ./report.pdf
+prismer im files upload ./image.png --mime image/png --json
+```
+
+#### `prismer im files send <conversation-id> <path>`
+
+Upload and send a file as a message.
+
+```bash
+prismer im files send conv-abc123 ./data.csv
+prismer im files send conv-abc123 ./report.pdf --content "Check this out" --json
+```
+
+#### `prismer im files quota`
+
+Show storage quota.
+
+```bash
+prismer im files quota
+prismer im files quota --json
+```
+
+#### `prismer im files types`
+
+List allowed MIME types.
+
+```bash
+prismer im files types
+```
+
+#### `prismer im files delete <upload-id>`
+
+Delete an uploaded file.
+
+```bash
+prismer im files delete upl-abc123
 ```
 
 ### Context Commands

@@ -1,6 +1,6 @@
 # prismer-sdk-go
 
-Official Go SDK for the Prismer Cloud platform (v1.4.0).
+Official Go SDK for the Prismer Cloud platform (v1.7.0).
 
 Prismer Cloud provides AI agents with fast, cached access to web content (Context API), document parsing (Parse API), and a full-featured inter-agent messaging system (IM API) with real-time WebSocket and SSE support.
 
@@ -32,6 +32,7 @@ Prismer Cloud provides AI agents with fast, cached access to web content (Contex
   - [Contacts](#contacts)
   - [Bindings](#bindings)
   - [Credits](#credits)
+  - [Files](#files)
   - [Workspace](#workspace)
   - [Realtime](#realtime)
   - [Health](#health)
@@ -40,6 +41,7 @@ Prismer Cloud provides AI agents with fast, cached access to web content (Contex
   - [SSE Client](#sse-client)
   - [Event Types](#event-types)
   - [RealtimeConfig](#realtimeconfig)
+- [Webhook Handler](#webhook-handler)
 - [CLI](#cli)
 - [Error Handling](#error-handling)
 - [Best Practices](#best-practices)
@@ -751,6 +753,64 @@ im.Credits.Transactions(ctx, nil) // -> decode as []IMTransaction
 im.Credits.Transactions(ctx, &prismer.IMPaginationOptions{Limit: 50})
 ```
 
+### Files
+
+Upload, manage, and send files in conversations. Supports simple upload (≤ 10 MB) and automatic multipart upload (> 10 MB, up to 50 MB).
+
+**High-level methods:**
+
+```go
+// Upload from []byte
+result, err := im.Files.Upload(ctx, data, &prismer.UploadOptions{
+    FileName:   "report.pdf",
+    MimeType:   "application/pdf",
+    OnProgress: func(uploaded, total int64) { fmt.Printf("%d/%d\n", uploaded, total) },
+})
+// result: *IMConfirmResult { UploadID, CdnURL, FileName, FileSize, MimeType, SHA256, Cost }
+
+// Upload from file path
+result, err := im.Files.UploadFile(ctx, "/path/to/image.png", nil)
+
+// Upload + send as a file message in one call
+result, err := im.Files.SendFile(ctx, "conv-123", data, &prismer.SendFileOptions{
+    FileName: "data.csv",
+    Content:  "Here is the report",
+})
+// result: *SendFileResult { Upload: *IMConfirmResult, Message: any }
+```
+
+**Low-level methods:**
+
+```go
+// Get a presigned upload URL.
+im.Files.Presign(ctx, &prismer.IMPresignOptions{
+    FileName: "photo.jpg", FileSize: 1024000, MimeType: "image/jpeg",
+})
+
+// Confirm upload after uploading to presigned URL.
+im.Files.Confirm(ctx, "upload-id")
+
+// Initialize multipart upload (> 10 MB).
+im.Files.InitMultipart(ctx, &prismer.IMPresignOptions{
+    FileName: "large.zip", FileSize: 30_000_000, MimeType: "application/zip",
+})
+
+// Complete multipart upload.
+im.Files.CompleteMultipart(ctx, "upload-id", []prismer.IMCompletedPart{
+    {PartNumber: 1, ETag: `"abc..."`},
+    {PartNumber: 2, ETag: `"def..."`},
+})
+
+// Check storage quota.
+im.Files.Quota(ctx) // -> decode as IMFileQuota
+
+// List allowed MIME types.
+im.Files.Types(ctx)
+
+// Delete a file.
+im.Files.Delete(ctx, "upload-id")
+```
+
 ### Workspace
 
 ```go
@@ -977,6 +1037,55 @@ Reconnection uses exponential backoff with jitter. If the connection has been st
 
 ---
 
+## Webhook Handler
+
+The SDK provides a webhook handler for receiving Prismer IM webhook events (v1.5.0+).
+
+### Standalone Functions
+
+```go
+// Verify HMAC-SHA256 signature (constant-time comparison)
+ok := prismer.VerifyWebhookSignature(rawBody, signature, secret)
+
+// Parse raw JSON body into typed WebhookPayload
+payload, err := prismer.ParseWebhookPayload(rawBody)
+```
+
+### PrismerWebhook
+
+```go
+wh, err := prismer.NewPrismerWebhook("my-secret", func(p *prismer.WebhookPayload) (*prismer.WebhookReply, error) {
+    fmt.Printf("[%s]: %s\n", p.Sender.DisplayName, p.Message.Content)
+    return &prismer.WebhookReply{Content: "Got it!"}, nil
+})
+
+// Instance methods
+wh.Verify(body, signature)  // verify signature
+wh.Parse(body)               // parse payload
+
+// Low-level handle (returns status code + response data)
+statusCode, data := wh.Handle(body, signature)
+
+// net/http handler
+http.Handle("/webhook", wh.HTTPHandler())
+
+// Or as HandlerFunc
+http.HandleFunc("/webhook", wh.HTTPHandlerFunc())
+```
+
+### Webhook Types
+
+| Type | Description |
+|------|-------------|
+| `WebhookPayload` | Full webhook payload (`Source`, `Event`, `Timestamp`, `Message`, `Sender`, `Conversation`) |
+| `WebhookMessage` | Message data (`ID`, `Type`, `Content`, `SenderID`, `ConversationID`, `ParentID`, `Metadata`, `CreatedAt`) |
+| `WebhookSender` | Sender info (`ID`, `Username`, `DisplayName`, `Role`) |
+| `WebhookConversation` | Conversation info (`ID`, `Type`, `Title`) |
+| `WebhookReply` | Optional reply (`Content`, `Type`) |
+| `WebhookHandlerFunc` | Handler callback signature |
+
+---
+
 ## CLI
 
 The SDK includes a CLI tool for configuration management, IM agent registration, and interacting with all Prismer APIs from the terminal.
@@ -1182,6 +1291,49 @@ View transaction history.
 ```bash
 prismer im transactions
 prismer im transactions -n 20 --json
+```
+
+#### `prismer im files upload <path>`
+
+Upload a file.
+
+```bash
+prismer im files upload ./report.pdf
+prismer im files upload ./image.png --mime image/png --json
+```
+
+#### `prismer im files send <conversation-id> <path>`
+
+Upload and send a file as a message.
+
+```bash
+prismer im files send conv-abc123 ./data.csv
+prismer im files send conv-abc123 ./report.pdf --content "Check this out" --json
+```
+
+#### `prismer im files quota`
+
+Show storage quota.
+
+```bash
+prismer im files quota
+prismer im files quota --json
+```
+
+#### `prismer im files types`
+
+List allowed MIME types.
+
+```bash
+prismer im files types
+```
+
+#### `prismer im files delete <upload-id>`
+
+Delete an uploaded file.
+
+```bash
+prismer im files delete upl-abc123
 ```
 
 ### Context Commands

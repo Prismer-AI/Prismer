@@ -2,6 +2,8 @@
  * Prismer Cloud SDK — Type definitions
  */
 
+import type { StorageAdapter } from './storage';
+
 // ============================================================================
 // Environment
 // ============================================================================
@@ -29,6 +31,8 @@ export interface PrismerConfig {
   fetch?: typeof fetch;
   /** Default X-IM-Agent header for IM requests (select which agent identity to use) */
   imAgent?: string;
+  /** Enable offline-first mode for IM with local persistence and sync */
+  offline?: OfflineConfig;
 }
 
 // ============================================================================
@@ -92,6 +96,7 @@ export interface SaveOptions {
   url: string;
   hqcc: string;
   raw?: string;
+  visibility?: 'public' | 'private' | 'unlisted';
   meta?: Record<string, any>;
 }
 
@@ -103,8 +108,10 @@ export interface SaveResult {
   success: boolean;
   status?: string;
   url?: string;
-  results?: Array<{ url: string; status: string }>;
-  summary?: { total: number; created: number; exists: number };
+  content_uri?: string;
+  visibility?: string;
+  results?: Array<{ url: string; status: string; content_uri?: string }>;
+  summary?: { total: number; created: number; updated?: number; failed?: number; exists?: number };
   error?: { code: string; message: string };
 }
 
@@ -378,12 +385,120 @@ export interface IMDiscoverOptions {
   capability?: string;
 }
 
+// ── File Upload ─────────────────────────────────────────────
+
+export interface IMPresignOptions {
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+}
+
+export interface IMPresignResult {
+  uploadId: string;
+  url: string;
+  fields: Record<string, string>;
+  expiresAt: string;
+}
+
+export interface IMConfirmResult {
+  uploadId: string;
+  cdnUrl: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  sha256: string | null;
+  cost: number;
+}
+
+export interface IMFileQuota {
+  used: number;
+  limit: number;
+  tier: string;
+  fileCount: number;
+}
+
+// ── File Upload (high-level) ─────────────────────────────
+
+/** Input source for upload() — polymorphic across Node.js and browser */
+export type FileInput = File | Blob | Buffer | Uint8Array | string;
+
+export interface UploadOptions {
+  /** File name (required if input is Buffer/Uint8Array/Blob without name) */
+  fileName?: string;
+  /** MIME type (auto-detected from fileName extension if not provided) */
+  mimeType?: string;
+  /** Progress callback */
+  onProgress?: (uploaded: number, total: number) => void;
+}
+
+export interface UploadResult {
+  uploadId: string;
+  cdnUrl: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  sha256: string | null;
+  cost: number;
+}
+
+export interface SendFileOptions extends UploadOptions {
+  /** Message content (defaults to fileName) */
+  content?: string;
+  /** Parent message ID for threading */
+  parentId?: string;
+}
+
+export interface SendFileResult {
+  upload: UploadResult;
+  message: any;
+}
+
+export interface IMMultipartInitResult {
+  uploadId: string;
+  parts: Array<{ partNumber: number; url: string }>;
+  expiresAt: string;
+}
+
 /** Generic IM API response wrapper */
 export interface IMResult<T = any> {
   ok: boolean;
   data?: T;
   meta?: { total?: number; pageSize?: number };
   error?: { code: string; message: string };
+}
+
+// ── Offline Configuration ──────────────────────────────────────
+
+export interface OfflineConfig {
+  /** Storage adapter implementation (IndexedDBStorage, MemoryStorage, SQLiteStorage) */
+  storage: StorageAdapter;
+  /** Auto-sync on reconnect (default: true) */
+  syncOnConnect?: boolean;
+  /** Max retries per outbox operation (default: 5) */
+  outboxRetryLimit?: number;
+  /** Outbox flush interval in ms (default: 1000) */
+  outboxFlushInterval?: number;
+  /** Conflict strategy: 'server' = server wins, 'client' = client wins (default: 'server') */
+  conflictStrategy?: 'server' | 'client';
+  /** Custom conflict resolver — called when server and local message diverge */
+  onConflict?: (local: import('./storage').StoredMessage, remote: { type: string; data: any; seq: number }) => 'keep_local' | 'accept_remote' | import('./storage').StoredMessage;
+  /** Sync mode: 'push' = SSE continuous stream, 'poll' = periodic polling (default: 'push') */
+  syncMode?: 'push' | 'poll';
+  /** Enable multi-tab coordination via BroadcastChannel (default: true in browser, false in Node.js) */
+  multiTab?: boolean;
+  /** E2E encryption config */
+  e2e?: {
+    enabled: boolean;
+    /** User passphrase for master key derivation (PBKDF2) */
+    passphrase: string;
+  };
+  /** Storage quota config */
+  quota?: {
+    /** Max storage size in bytes (default: 500MB) */
+    maxStorageBytes?: number;
+    /** Warning threshold 0-1 (default: 0.9 = 90%) */
+    warningThreshold?: number;
+  };
 }
 
 /** Internal request function type */

@@ -7,13 +7,36 @@ import "encoding/json"
 // ============================================================================
 
 // APIError represents an API error.
+// It handles both object {"code":"...", "message":"..."} and plain string formats.
 type APIError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
 func (e *APIError) Error() string {
-	return e.Code + ": " + e.Message
+	if e.Code != "" {
+		return e.Code + ": " + e.Message
+	}
+	return e.Message
+}
+
+// UnmarshalJSON handles both string and object error formats from the API.
+func (e *APIError) UnmarshalJSON(data []byte) error {
+	// Try string first
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		e.Code = "ERROR"
+		e.Message = s
+		return nil
+	}
+	// Fall back to object
+	type alias APIError
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*e = APIError(a)
+	return nil
 }
 
 // ============================================================================
@@ -95,10 +118,11 @@ type RankingFactors struct {
 }
 
 type SaveOptions struct {
-	URL  string         `json:"url"`
-	HQCC string         `json:"hqcc"`
-	Raw  string         `json:"raw,omitempty"`
-	Meta map[string]any `json:"meta,omitempty"`
+	URL        string         `json:"url"`
+	HQCC       string         `json:"hqcc"`
+	Raw        string         `json:"raw,omitempty"`
+	Visibility string         `json:"visibility,omitempty"`
+	Meta       map[string]any `json:"meta,omitempty"`
 }
 
 type SaveBatchOptions struct {
@@ -430,6 +454,85 @@ type IMPaginationOptions struct {
 type IMDiscoverOptions struct {
 	Type       string
 	Capability string
+}
+
+// ============================================================================
+// IM File Upload Types
+// ============================================================================
+
+// IMPresignOptions configures a presigned upload URL request.
+type IMPresignOptions struct {
+	FileName string `json:"fileName"`
+	FileSize int64  `json:"fileSize"`
+	MimeType string `json:"mimeType"`
+}
+
+// IMPresignResult is the response from a presign request.
+type IMPresignResult struct {
+	UploadID  string            `json:"uploadId"`
+	URL       string            `json:"url"`
+	Fields    map[string]string `json:"fields"`
+	ExpiresAt string            `json:"expiresAt"`
+}
+
+// IMConfirmResult is the response from a confirm request.
+type IMConfirmResult struct {
+	UploadID string  `json:"uploadId"`
+	CdnURL   string  `json:"cdnUrl"`
+	FileName string  `json:"fileName"`
+	FileSize int64   `json:"fileSize"`
+	MimeType string  `json:"mimeType"`
+	SHA256   *string `json:"sha256"`
+	Cost     float64 `json:"cost"`
+}
+
+// IMFileQuota is the response from a quota request.
+type IMFileQuota struct {
+	Used      int64  `json:"used"`
+	Limit     int64  `json:"limit"`
+	Tier      string `json:"tier"`
+	FileCount int    `json:"fileCount"`
+}
+
+// IMMultipartPart represents a part URL in a multipart upload init response.
+type IMMultipartPart struct {
+	PartNumber int    `json:"partNumber"`
+	URL        string `json:"url"`
+}
+
+// IMMultipartInitResult is the response from a multipart init request.
+type IMMultipartInitResult struct {
+	UploadID  string            `json:"uploadId"`
+	Parts     []IMMultipartPart `json:"parts"`
+	ExpiresAt string            `json:"expiresAt"`
+}
+
+// IMCompletedPart represents a completed part for multipart complete.
+type IMCompletedPart struct {
+	PartNumber int    `json:"partNumber"`
+	ETag       string `json:"etag"`
+}
+
+// UploadOptions configures a high-level file upload.
+type UploadOptions struct {
+	FileName   string
+	MimeType   string
+	OnProgress func(uploaded, total int64)
+}
+
+// SendFileOptions configures a high-level send-file operation.
+type SendFileOptions struct {
+	FileName   string
+	MimeType   string
+	Content    string // Message content (defaults to fileName)
+	ParentID   string
+	OnProgress func(uploaded, total int64)
+}
+
+// SendFileResult contains the upload result and message data.
+type SendFileResult struct {
+	Upload  *IMConfirmResult
+	Message json.RawMessage
 }
 
 // IMResult is the generic IM API response.
