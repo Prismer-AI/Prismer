@@ -119,10 +119,10 @@ AI-native PDF reader for research papers with:
 
 ### ☁️ Context Cloud
 
-Cloud-based context management with full SDK support (TypeScript, Python, Go):
+Cloud-based context management with full SDK support (TypeScript, Python, Go) — **SDK v1.7.0 Now Available! 🎉**
 
 ```typescript
-import { PrismerClient } from '@prismer/sdk';
+import { PrismerClient } from '@prismer/sdk';  // v1.7.0
 
 const client = new PrismerClient({ apiKey: 'sk-prismer-...' });
 
@@ -138,20 +138,40 @@ console.log(pdf.document?.markdown);
 const reg = await client.im.account.register({
   type: 'agent', username: 'research-bot', agentType: 'assistant',
 });
+
+// NEW in v1.7: File uploads with progress tracking
+const file = await client.im.files.upload({
+  path: './paper.pdf',
+  onProgress: (p) => console.log(`Upload: ${p}%`)
+});
+
+// NEW in v1.7: Offline mode with outbox queue
+import { OfflineManager, MemoryStorage } from '@prismer/sdk';
+const offline = new OfflineManager(new MemoryStorage(), client.request);
+await offline.dispatch('POST', '/api/im/direct/conv-1', { content: 'hello' });
 ```
 
 ```python
-from prismer import PrismerClient
+from prismer import PrismerClient  # v1.7.0
 
 client = PrismerClient(api_key="sk-prismer-...")
 result = client.load("https://example.com")
 print(result.result.hqcc)
+
+# NEW in v1.7: Webhook handler for incoming events
+from prismer.webhook import PrismerWebhook
+webhook = PrismerWebhook(secret="your-secret")
+payload = webhook.handle(request)
 ```
 
 ```go
-client := prismer.NewClient("sk-prismer-...")
+client := prismer.NewClient("sk-prismer-...")  // v1.7.0
 result, _ := client.Load(ctx, "https://example.com", nil)
 fmt.Println(result.Result.HQCC)
+
+// NEW in v1.7: Webhook handler
+webhook := prismer.NewPrismerWebhook("your-secret")
+payload, _ := webhook.Handle(r)
 ```
 
 ### ✍️ LaTeX Editor
@@ -172,30 +192,40 @@ LLMs fabricate citations. Prismer.AI solves this with a **Reviewer Agent** that 
 
 All core components are MIT-licensed and can be used independently:
 
-| Package | Language | Description |
-|---------|----------|-------------|
-| [`@prismer/sdk`](sdk/typescript/) | TypeScript | Context Cloud SDK — load, parse, IM, realtime, CLI |
-| [`prismer`](sdk/python/) | Python | Context Cloud SDK — sync + async, CLI |
-| [`prismer-sdk-go`](sdk/golang/) | Go | Context Cloud SDK — context-based, CLI |
-| `@prismer/paper-reader` | TypeScript | PDF reader with AI chat |
-| `@prismer/latex-editor` | TypeScript | LaTeX editor with live preview |
-| `@prismer/academic-tools` | TypeScript | arXiv, Semantic Scholar APIs |
-| `@prismer/jupyter-kernel` | TypeScript | Browser-native notebooks |
-| `@prismer/code-sandbox` | TypeScript | WebContainer code execution |
-| `@prismer/agent-protocol` | TypeScript | Multi-agent orchestration |
+| Package | Version | Language | Description |
+|---------|---------|----------|-------------|
+| [`@prismer/sdk`](sdk/typescript/) | **v1.7.0** | TypeScript | Context Cloud SDK — load, parse, IM, realtime, **file upload, offline mode, E2E encryption**, CLI |
+| [`prismer`](sdk/python/) | **v1.7.0** | Python | Context Cloud SDK — sync + async, **webhook handler**, CLI |
+| [`prismer-sdk-go`](sdk/golang/) | **v1.7.0** | Go | Context Cloud SDK — context-based, **webhook handler**, CLI |
+| `@prismer/paper-reader` | | TypeScript | PDF reader with AI chat |
+| `@prismer/latex-editor` | | TypeScript | LaTeX editor with live preview |
+| `@prismer/academic-tools` | | TypeScript | arXiv, Semantic Scholar APIs |
+| `@prismer/jupyter-kernel` | | TypeScript | Browser-native notebooks |
+| `@prismer/code-sandbox` | | TypeScript | WebContainer code execution |
+| `@prismer/agent-protocol` | | TypeScript | Multi-agent orchestration |
 
 ### SDK Installation
 
 ```bash
 # TypeScript / JavaScript
-npm install @prismer/sdk
+npm install @prismer/sdk@1.7.0
 
 # Python
-pip install prismer
+pip install prismer==1.7.0
 
 # Go
-go get github.com/Prismer-AI/Prismer/sdk/golang
+go get github.com/Prismer-AI/Prismer/sdk/golang@v1.7.0
 ```
+
+### 🎉 New in SDK v1.7.0
+
+- **File Upload** — Presign-based secure upload with progress tracking and quota management
+- **Offline Mode** — Outbox queue for resilient messaging with automatic sync
+- **Storage Adapters** — MemoryStorage, IndexedDBStorage, SQLiteStorage
+- **Webhook Handler** — HMAC-SHA256 verification with framework adapters (Express, Hono, Flask, FastAPI)
+- **E2E Encryption** — AES-256-GCM with ECDH P-256 key exchange (TypeScript)
+- **Multi-Tab Coordination** — BroadcastChannel leadership election (TypeScript)
+- **Attachment Queue** — Offline file upload with retry (TypeScript)
 
 The SDK provides access to Context API (load/save web content), Parse API (PDF parsing), IM API (agent registration, direct messaging, groups, workspaces), and Realtime API (WebSocket/SSE). Each SDK includes a CLI tool (`prismer init`, `prismer register`, `prismer status`).
 
@@ -229,10 +259,14 @@ See [docker/README.md](docker/README.md) for detailed setup instructions, config
 |------|-------------|
 | ✅ Paper Reader | 🚧 Reviewer Agent |
 | ✅ Context Cloud | 🚧 npm package extraction |
-| ✅ Context Cloud SDK v1.0.0 (TS, Python, Go) | 🚧 Documentation site |
+| ✅ Context Cloud SDK **v1.7.0** (TS, Python, Go) | 🚧 Documentation site |
 | ✅ IM API (agent messaging, groups, workspaces) | |
 | ✅ Parse API (PDF parsing) | |
 | ✅ SDK CLI (init, register, status) | |
+| ✅ File Upload API (presign-based) | |
+| ✅ Offline Mode (outbox queue, sync engine) | |
+| ✅ Webhook Handlers (all SDKs) | |
+| ✅ E2E Encryption (TypeScript) | |
 | ✅ LaTeX Editor | |
 | ✅ Multi-agent system | |
 | ✅ Self-hosting (Docker) | |

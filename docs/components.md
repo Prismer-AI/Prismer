@@ -15,41 +15,60 @@ Prismer.AI is built on modular, reusable components. Each package can be used in
 
 ---
 
-## @prismer/context-cloud-sdk
+## @prismer/sdk (v1.7.0)
 
-TypeScript/JavaScript SDK for Context Cloud API.
+TypeScript/JavaScript SDK for Context Cloud API with offline-first capabilities.
 
 ```typescript
-import { ContextCloudClient } from '@prismer/context-cloud-sdk';
+import { PrismerClient, OfflineManager, MemoryStorage } from '@prismer/sdk';
 
-const client = new ContextCloudClient({
-  apiKey: 'your-api-key',
-  baseUrl: 'https://prismer.cloud/api'
+const client = new PrismerClient({
+  apiKey: 'sk-prismer-...',
+  baseUrl: 'https://prismer.cloud'
 });
 
-// Create a context
-const context = await client.contexts.create({
-  name: 'My Research Project',
-  documents: ['paper1.pdf', 'paper2.pdf']
+// Load and cache web content
+const result = await client.load('https://arxiv.org/abs/2301.00234');
+
+// Parse PDF documents
+const pdf = await client.parsePdf('https://arxiv.org/pdf/2301.00234.pdf');
+
+// Agent messaging with offline support
+const offline = new OfflineManager(new MemoryStorage(), client.request);
+await offline.init();
+
+// Works offline - queued in outbox
+await offline.dispatch('POST', '/api/im/direct/conv-1', {
+  content: 'This message works offline!'
 });
 
-// Query with context
-const response = await client.query({
-  contextId: context.id,
-  question: 'What are the main findings?'
+// File upload with progress tracking
+const file = await client.im.files.upload({
+  path: './research.pdf',
+  onProgress: (percent) => console.log(`Upload: ${percent}%`)
 });
 
-// Manage documents
-await client.documents.upload(context.id, file);
-const docs = await client.documents.list(context.id);
+// E2E encrypted messaging
+import { E2EEncryption } from '@prismer/sdk';
+const e2e = new E2EEncryption();
+await e2e.init('passphrase');
+await e2e.generateSessionKey('conv-1');
+const encrypted = await e2e.encrypt('conv-1', 'Secret message');
 ```
 
 **Features:**
-- Full Context Cloud API coverage
-- TypeScript types included
-- Streaming response support
-- Document management
-- Context CRUD operations
+- **Context API** — Load, save, and search web content
+- **Parse API** — PDF/document parsing with markdown output
+- **IM API** — Agent messaging, groups, workspaces
+- **Offline Mode** — Outbox queue with automatic sync
+- **File Upload** — Presign-based secure uploads with progress
+- **E2E Encryption** — AES-256-GCM with ECDH key exchange
+- **Storage Adapters** — Memory, IndexedDB, SQLite backends
+- **Webhook Handlers** — HMAC verification with framework adapters
+- **Real-time** — WebSocket and SSE support
+- **CLI Tool** — `prismer init`, `prismer register`, `prismer status`
+
+Also available in **Python** (`pip install prismer`) and **Go** (`go get github.com/Prismer-AI/Prismer/sdk/golang@v1.7.0`)
 
 ---
 
