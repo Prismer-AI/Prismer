@@ -870,7 +870,7 @@ export class SQLiteStorage implements StorageAdapter {
       for (const op of items) update.run('inflight', op.id);
     });
     txn(ops);
-    return ops.map(op => ({ ...op, status: 'inflight' as const }));
+    return ops.map((op: OutboxOperation) => ({ ...op, status: 'inflight' as const }));
   }
 
   async ack(opId: string): Promise<void> {

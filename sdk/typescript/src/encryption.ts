@@ -97,7 +97,7 @@ export class E2EEncryption {
     this.masterKey = await subtle().deriveKey(
       {
         name: 'PBKDF2',
-        salt: this.salt,
+        salt: this.salt as BufferSource,
         iterations: PBKDF2_ITERATIONS,
         hash: 'SHA-256',
       },
@@ -190,7 +190,7 @@ export class E2EEncryption {
     const encoded = new TextEncoder().encode(plaintext);
 
     const ciphertext = await subtle().encrypt(
-      { name: 'AES-GCM', iv },
+      { name: 'AES-GCM', iv: iv as BufferSource },
       key,
       encoded,
     );

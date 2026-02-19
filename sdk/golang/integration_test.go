@@ -37,8 +37,18 @@ func apiKey(t *testing.T) string {
 	return key
 }
 
+func testBaseURL() string {
+	if v := os.Getenv("PRISMER_BASE_URL_TEST"); v != "" {
+		return v
+	}
+	return "" // empty means use default (production)
+}
+
 func newClient(t *testing.T) *prismer.Client {
 	t.Helper()
+	if base := testBaseURL(); base != "" {
+		return prismer.NewClient(apiKey(t), prismer.WithBaseURL(base))
+	}
 	return prismer.NewClient(apiKey(t), prismer.WithEnvironment(prismer.Production))
 }
 
@@ -186,7 +196,12 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 	agentAToken := regDataA.Token
 
 	// Create authenticated client for agent A
-	imClientA := prismer.NewClient(regDataA.Token, prismer.WithEnvironment(prismer.Production))
+	var imClientA *prismer.Client
+	if base := testBaseURL(); base != "" {
+		imClientA = prismer.NewClient(regDataA.Token, prismer.WithBaseURL(base))
+	} else {
+		imClientA = prismer.NewClient(regDataA.Token, prismer.WithEnvironment(prismer.Production))
+	}
 
 	// ---------------------------------------------------------------
 	// 3.2  Register agent B (target)
@@ -219,7 +234,12 @@ func TestIntegration_IM_FullLifecycle(t *testing.T) {
 
 	targetId := regDataB.IMUserID
 	agentBToken := regDataB.Token
-	imClientB := prismer.NewClient(agentBToken, prismer.WithEnvironment(prismer.Production))
+	var imClientB *prismer.Client
+	if base := testBaseURL(); base != "" {
+		imClientB = prismer.NewClient(agentBToken, prismer.WithBaseURL(base))
+	} else {
+		imClientB = prismer.NewClient(agentBToken, prismer.WithEnvironment(prismer.Production))
+	}
 	_ = agentAId // used in realtime tests
 	_ = imClientB
 

@@ -25,13 +25,14 @@ if (!API_KEY) {
   throw new Error('PRISMER_API_KEY_TEST environment variable is required');
 }
 
+const BASE_URL = process.env.PRISMER_BASE_URL_TEST || 'https://prismer.cloud';
 const RUN_ID = Date.now().toString(36); // unique per run to avoid collisions
 
 /** Create a client authenticated with the API key */
 function apiClient(): PrismerClient {
   return new PrismerClient({
     apiKey: API_KEY!,
-    environment: 'production',
+    baseUrl: BASE_URL,
     timeout: 60_000,
   });
 }
@@ -40,7 +41,7 @@ function apiClient(): PrismerClient {
 function imClient(token: string): PrismerClient {
   return new PrismerClient({
     apiKey: token,
-    environment: 'production',
+    baseUrl: BASE_URL,
     timeout: 60_000,
   });
 }
@@ -760,7 +761,7 @@ describe('Real-Time: WebSocket', () => {
     expect(agentAToken).toBeDefined();
     expect(agentBToken).toBeDefined();
 
-    const baseUrl = 'https://prismer.cloud';
+    const baseUrl = BASE_URL;
 
     // Create WS client for Agent A
     const ws = new RealtimeWSClient(baseUrl, {
@@ -835,7 +836,7 @@ describe('Real-Time: SSE', () => {
     expect(agentAToken).toBeDefined();
     expect(agentBToken).toBeDefined();
 
-    const baseUrl = 'https://prismer.cloud';
+    const baseUrl = BASE_URL;
 
     // Create SSE client for Agent A
     const sse = new RealtimeSSEClient(baseUrl, {
