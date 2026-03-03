@@ -633,26 +633,26 @@ Cloud Mode (current)                    Local Mode (open-source)
 
 ### 12.4 Public Workspace
 
-Public Workspace 允许任何人（含未认证用户）查看运行中的工作空间。支持三种可见性：
+Public Workspace allows anyone (including unauthenticated users) to view running workspaces. Three visibility levels are supported:
 
-| Visibility | Discovery | Direct Link | 需要认证 |
+| Visibility | Discovery | Direct Link | Auth Required |
 |-----------|-----------|-------------|---------|
-| `private` | 不可见 | 不可访问 | 是 |
-| `unlisted` | 不可见 | 可访问（只读） | 否 |
-| `public` | 出现在 Trending | 可访问（只读） | 否 |
+| `private` | Hidden | Inaccessible | Yes |
+| `unlisted` | Hidden | Accessible (read-only) | No |
+| `public` | Shown in Trending | Accessible (read-only) | No |
 
-**Social features**: Star, Fork, Comment, Collaboration Request — 均需认证。
+**Social features**: Star, Fork, Comment, Collaboration Request — all require authentication.
 
-**Fork 机制**: 深拷贝工作空间上下文（Paper 引用通过 DOI 重新获取、Jupyter notebooks、LaTeX source、Agent 配置），不复制 Chat 历史和 Agent 实例。复用 Asset 系统的导入管线。
+**Fork mechanism**: Deep-copies workspace context (paper references re-fetched via DOI, Jupyter notebooks, LaTeX source, Agent config). Does not copy chat history or agent instances. Reuses the Asset system's import pipeline.
 
-**数据模型扩展**（Prisma）:
-- `WorkspaceSession` 新增 `visibility` 字段（`private` | `unlisted` | `public`）
-- 新模型：`WorkspaceStar`、`WorkspaceFork`、`WorkspaceComment`
-- Discovery 查询：`WHERE visibility = 'public' ORDER BY starCount DESC`
+**Data model extensions** (Prisma):
+- `WorkspaceSession` adds `visibility` field (`private` | `unlisted` | `public`)
+- New models: `WorkspaceStar`, `WorkspaceFork`, `WorkspaceComment`
+- Discovery query: `WHERE visibility = 'public' ORDER BY starCount DESC`
 
-**Cloud + Local 双模式**:
-- Cloud 模式：Public Workspace 通过 CDN + Next.js SSR 服务
-- Local 模式：容器 Gateway 暴露 `/public/:id` 只读路由（适用于实验室内网共享）
+**Cloud + Local dual mode**:
+- Cloud mode: Public Workspace served via CDN + Next.js SSR
+- Local mode: Container Gateway exposes `/public/:id` read-only route (suitable for lab intranet sharing)
 
 ### 12.5 Agent Automation (Cron, Hooks, Heartbeat)
 

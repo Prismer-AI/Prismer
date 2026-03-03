@@ -36,12 +36,12 @@
 > **Workspace Collection: Auto-create on workspace init + file sync pipeline ✅ (2026-02-25)**
 > **Notes Auto-Save: 5s periodic save to workspace collection ✅ (2026-02-25)**
 > **E2E MVP Tasks: LaTeX survey, Jupyter visualization, Notes template — 3 scenarios added ✅ (2026-02-25)**
-> **WindowView Action System: Plugin v0.5.0 (26 tools) + Image v4.5 — 四层测试 59+ tests ✅ (2026-02-26)**
+> **WindowView Action System: Plugin v0.5.0 (26 tools) + Image v4.5 — 4-layer tests 59+ tests ✅ (2026-02-26)**
 > **Plugin Rewrite: prismer-workspace v0.5.0 (26 tools, registerTool API) ✅ (2026-02-26)**
-> **四层测试体系: Unit (~50+) + L1 (21) + L2 (32) + L3 (6) = 59+ tests ✅ (2026-02-27)**
+> **4-Layer Test System: Unit (~50+) + L1 (21) + L2 (32) + L3 (6) = 59+ tests ✅ (2026-02-27)**
 > **Container v4.5: Old image cleanup + version bump + configSchema fix + rebuild ✅ (2026-02-27)**
 > **DB Reset: Dev database cleared, fresh schema pushed ✅ (2026-02-27)**
-> **Next: 文档对齐 → 进入 Phase 5 Open-Source 前端**
+> **Next: Documentation alignment → Enter Phase 5 Open-Source Frontend**
 > Reference: `docs/WINDOWVIEW_CONVERGENCE.md`, `docs/ROADMAP.md`, `docs/CONTAINER_PROTOCOL.md`, `docs/ACTION_TAXONOMY.md`
 
 ---
