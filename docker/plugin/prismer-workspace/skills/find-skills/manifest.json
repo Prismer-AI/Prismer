@@ -1,0 +1,101 @@
+{
+  "id": "find-skills",
+  "name": "Find Skills",
+  "version": "1.0.0",
+  "description": "Discover and manage skills for Prismer.AI workspace. Search, install, and uninstall skills that extend workspace capabilities.",
+  "category": "general",
+  "author": "Prismer Team",
+  "repository": "https://github.com/prismer/pisa-os",
+  "tools": [
+    {
+      "name": "skill_search",
+      "description": "Search for skills by name, description, or capability",
+      "parameters": {
+        "query": {
+          "type": "string",
+          "description": "Free-text search query",
+          "required": false
+        },
+        "category": {
+          "type": "string",
+          "description": "Filter by category (latex, jupyter, pdf, citation, data, writing, general)",
+          "required": false
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximum results to return",
+          "required": false,
+          "default": 10
+        }
+      }
+    },
+    {
+      "name": "skill_info",
+      "description": "Get detailed information about a specific skill",
+      "parameters": {
+        "skillId": {
+          "type": "string",
+          "description": "The skill ID or name",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "skill_install",
+      "description": "Install a skill to the current workspace",
+      "parameters": {
+        "skillId": {
+          "type": "string",
+          "description": "The skill ID or package name",
+          "required": true
+        },
+        "version": {
+          "type": "string",
+          "description": "Specific version to install",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "skill_list",
+      "description": "List all skills installed in the current workspace",
+      "parameters": {
+        "category": {
+          "type": "string",
+          "description": "Filter by category",
+          "required": false
+        },
+        "includeBuiltin": {
+          "type": "boolean",
+          "description": "Include built-in skills",
+          "required": false,
+          "default": true
+        }
+      }
+    },
+    {
+      "name": "skill_uninstall",
+      "description": "Remove a skill from the current workspace",
+      "parameters": {
+        "skillId": {
+          "type": "string",
+          "description": "The skill ID to uninstall",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "skill_update",
+      "description": "Update installed skills to their latest versions",
+      "parameters": {
+        "skillId": {
+          "type": "string",
+          "description": "Specific skill to update (omit for all)",
+          "required": false
+        }
+      }
+    }
+  ],
+  "dependencies": [],
+  "builtin": true
+}

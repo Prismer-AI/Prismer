@@ -1,0 +1,25 @@
+{
+  "id": "prismer-workspace",
+  "name": "Prismer Workspace",
+  "version": "0.5.0",
+  "description": "Academic workspace tools for Prismer.AI: LaTeX, Jupyter, PDF, data analysis, UI control",
+  "skills": ["skills"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "apiBaseUrl": {
+        "type": "string",
+        "description": "Next.js API base URL for directive API"
+      },
+      "agentId": {
+        "type": "string",
+        "description": "Agent instance ID for API calls"
+      },
+      "workspaceId": {
+        "type": "string",
+        "description": "Workspace session ID for context sync"
+      }
+    }
+  }
+}

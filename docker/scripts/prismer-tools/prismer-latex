@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""
+prismer-latex — Compile LaTeX documents via the container LaTeX service.
+
+Usage:
+  prismer-latex compile <file.tex> [--engine pdflatex|xelatex|lualatex]
+  prismer-latex preview <file.tex>   (compile + return base64 PDF)
+  prismer-latex compile-content "\\documentclass{...}..."
+
+The compiled PDF is saved next to the source file.
+A directive is written to /workspace/.openclaw/directives/ for the Bridge.
+"""
+
+import sys
+import os
+import json
+import urllib.request
+import urllib.error
+from pathlib import Path
+from datetime import datetime
+
+LATEX_SERVICE = "http://127.0.0.1:8080"
+DIRECTIVES_DIR = Path("/workspace/.openclaw/directives")
+OUTPUT_DIR = Path("/workspace/output")
+
+def ensure_dirs():
+    DIRECTIVES_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+def write_directive(directive):
+    """Write a UI directive for the Bridge to pick up."""
+    ensure_dirs()
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    path = DIRECTIVES_DIR / f"{ts}.json"
+    path.write_text(json.dumps(directive, ensure_ascii=False, indent=2))
+    return path
+
+def compile_file(tex_path, engine="pdflatex", preview=False):
+    """Compile a .tex file via the LaTeX service."""
+    tex_path = Path(tex_path).resolve()
+    if not tex_path.exists():
+        print(f"Error: File not found: {tex_path}", file=sys.stderr)
+        return False
+
+    content = tex_path.read_text(encoding="utf-8")
+    filename = tex_path.stem
+
+    endpoint = "/preview" if preview else "/compile"
+    payload = json.dumps({
+        "content": content,
+        "filename": filename,
+        "engine": engine,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        f"{LATEX_SERVICE}{endpoint}",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        print(f"Error: LaTeX service unavailable: {e}", file=sys.stderr)
+        return False
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return False
+
+    if not result.get("success"):
+        print(f"Compilation failed.", file=sys.stderr)
+        if result.get("errors"):
+            for err in result["errors"]:
+                print(f"  ERROR: {err}", file=sys.stderr)
+        if result.get("log"):
+            # Print last 20 lines of log
+            log_lines = result["log"].strip().split("\n")
+            for line in log_lines[-20:]:
+                print(f"  {line}", file=sys.stderr)
+        return False
+
+    # Save PDF
+    pdf_path = None
+    if preview and result.get("pdf_base64"):
+        import base64
+        pdf_data = base64.b64decode(result["pdf_base64"])
+        pdf_path = tex_path.with_suffix(".pdf")
+        pdf_path.write_bytes(pdf_data)
+        # Also copy to output dir
+        output_pdf = OUTPUT_DIR / pdf_path.name
+        output_pdf.write_bytes(pdf_data)
+        print(f"PDF saved: {pdf_path}")
+        print(f"PDF copied to: {output_pdf}")
+    elif result.get("pdf_path"):
+        pdf_path = Path(result["pdf_path"])
+        print(f"PDF at: {pdf_path}")
+
+    # Write directives for Bridge
+    # 1. Switch to latex-editor component
+    write_directive({
+        "type": "switch_component",
+        "target": "latex-editor",
+        "timestamp": datetime.now().isoformat(),
+    })
+
+    # 2. Load the LaTeX content
+    write_directive({
+        "type": "update_content",
+        "target": "latex-editor",
+        "data": {
+            "content": content,
+            "filename": tex_path.name,
+            "filepath": str(tex_path),
+        },
+        "timestamp": datetime.now().isoformat(),
+    })
+
+    # 3. If we have a PDF, signal compilation complete
+    if pdf_path:
+        pdf_rel = str(pdf_path) if pdf_path.exists() else None
+        write_directive({
+            "type": "compile_complete",
+            "target": "latex-editor",
+            "data": {
+                "pdf_path": pdf_rel,
+                "pdf_base64": result.get("pdf_base64", ""),
+                "engine": engine,
+                "errors": result.get("errors", []),
+                "warnings": result.get("warnings", []),
+            },
+            "timestamp": datetime.now().isoformat(),
+        })
+
+    # Print summary
+    print(f"Compilation successful ({engine})")
+    if result.get("warnings"):
+        print(f"Warnings: {len(result['warnings'])}")
+
+    return True
+
+def compile_content(content, engine="pdflatex"):
+    """Compile LaTeX content string directly."""
+    ensure_dirs()
+    # Write to temp file
+    tex_path = OUTPUT_DIR / "inline_document.tex"
+    tex_path.write_text(content, encoding="utf-8")
+    return compile_file(tex_path, engine, preview=True)
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+
+    if cmd == "compile" and len(sys.argv) >= 3:
+        engine = "pdflatex"
+        for i, arg in enumerate(sys.argv):
+            if arg == "--engine" and i + 1 < len(sys.argv):
+                engine = sys.argv[i + 1]
+        ok = compile_file(sys.argv[2], engine, preview=True)
+        sys.exit(0 if ok else 1)
+
+    elif cmd == "preview" and len(sys.argv) >= 3:
+        ok = compile_file(sys.argv[2], preview=True)
+        sys.exit(0 if ok else 1)
+
+    elif cmd == "compile-content" and len(sys.argv) >= 3:
+        content = sys.argv[2]
+        engine = "pdflatex"
+        for i, arg in enumerate(sys.argv):
+            if arg == "--engine" and i + 1 < len(sys.argv):
+                engine = sys.argv[i + 1]
+        ok = compile_content(content, engine)
+        sys.exit(0 if ok else 1)
+
+    else:
+        print(__doc__)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

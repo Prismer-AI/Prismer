@@ -1,0 +1,27 @@
+# ============================================================================
+# Machine Learning & NLP Dependencies
+# ============================================================================
+
+# Machine Learning
+scikit-learn>=1.4
+networkx>=3.2
+xgboost>=2.0
+lightgbm>=4.3
+
+# NLP & Text Processing
+nltk>=3.8
+spacy>=3.7
+transformers>=4.37
+sentence-transformers>=2.3
+
+# Literature & Research
+scholarly>=1.7
+habanero>=1.2
+arxiv>=2.1
+pybtex>=0.24
+bibtexparser>=1.4
+
+# Formal Methods & Theorem Proving
+z3-solver>=4.12
+# coqpy - Coq interaction (if available)
+# Note: Lean4 uses lake/elan, not pip packages

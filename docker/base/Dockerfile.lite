@@ -1,0 +1,40 @@
+# Prismer Academic Base Image — Lite Edition
+# Target: < 4GB, < 20 min build
+# Includes: Ubuntu 24.04 + Node 22 + Python 3.12 + TeXLive (basic) + Jupyter
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# System packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl wget git ca-certificates gnupg \
+    build-essential python3 python3-pip python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node.js 22
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# TeXLive — scheme-basic + academic essentials
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    texlive-base texlive-latex-base texlive-latex-recommended \
+    texlive-latex-extra texlive-fonts-recommended texlive-fonts-extra \
+    texlive-science texlive-bibtex-extra biber \
+    texlive-publishers latexmk \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python scientific stack
+RUN pip3 install --no-cache-dir --break-system-packages \
+    jupyter notebook numpy pandas matplotlib scipy \
+    sympy scikit-learn seaborn plotly
+
+# Workspace directory
+RUN mkdir -p /workspace/.prismer /workspace/.openclaw/directives
+WORKDIR /workspace
+
+LABEL org.opencontainers.image.title="prismer-academic-lite" \
+      org.opencontainers.image.description="Lightweight academic research container (TeXLive basic + Python + Jupyter)" \
+      org.opencontainers.image.version="5.0-lite"

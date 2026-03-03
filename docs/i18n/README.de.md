@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
+  <a href="https://learn.prismer.ai/">Learn</a> ·
   <a href="https://paper.prismer.ai/library">Paper-Leser</a> ·
-  <a href="https://prismer.cloud/">Context Cloud</a> ·
   <a href="https://docs.prismer.ai">Dokumentation</a> ·
   <a href="../roadmap.md">Roadmap</a>
 </p>
@@ -37,19 +37,21 @@
 
 <table>
 <tr>
-<td align="center" width="50%">
+<td align="center">
+<a href="https://learn.prismer.ai/">
+<img src="https://img.shields.io/badge/🎓_Learn-Jetzt_testen-blue?style=for-the-badge&labelColor=black" alt="Learn">
+</a>
+<br/>
+<sub>Lernressourcen, um Prismer effizient zu nutzen</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
 <a href="https://paper.prismer.ai/library">
 <img src="https://img.shields.io/badge/📖_Paper_Leser-Jetzt_testen-blue?style=for-the-badge&labelColor=black" alt="Paper Reading">
 </a>
 <br/>
 <sub>KI-nativer PDF-Reader mit Zitationsgraphen</sub>
-</td>
-<td align="center" width="50%">
-<a href="https://prismer.cloud/">
-<img src="https://img.shields.io/badge/☁️_Context_Cloud-Jetzt_testen-purple?style=for-the-badge&labelColor=black" alt="Context Cloud">
-</a>
-<br/>
-<sub>Cloud-basiertes Kontextmanagement & SDK</sub>
 </td>
 </tr>
 </table>
@@ -65,7 +67,6 @@ Im Gegensatz zu Tools, die nur Schreiben (Overleaf) oder Notizen (Notion) behand
 | Funktion | Beschreibung |
 |----------|--------------|
 | 📖 **Paper-Leser** | KI-nativer PDF-Reader mit Zitationsgraphen |
-| ☁️ **Context Cloud** | Cloud-basiertes Wissensmanagement mit SDK |
 | 📊 **Datenanalyse** | Jupyter-Notebooks mit Python/R-Ausführung |
 | ✍️ **Paper-Schreiben** | LaTeX-Editor mit Echtzeit-Vorschau |
 | 🔍 **Zitationsverifikation** | Automatische Überprüfung von Referenzen in akademischen Datenbanken |
@@ -78,7 +79,6 @@ Im Gegensatz zu Tools, die nur Schreiben (Overleaf) oder Notizen (Notion) behand
 | Funktion | Prismer.AI | OpenAI Prism | Overleaf | Google Scholar |
 |----------|:----------:|:------------:|:--------:|:--------------:|
 | Paper-Leser | ✅ | ❌ | ❌ | ✅ |
-| Context Cloud | ✅ | ❌ | ❌ | ❌ |
 | LaTeX-Schreiben | ✅ | ✅ | ✅ | ❌ |
 | Datenanalyse | ✅ | ❌ | ❌ | ❌ |
 | Code-Ausführung | ✅ | ❌ | ❌ | ❌ |
@@ -99,23 +99,6 @@ KI-nativer PDF-Reader für Forschungsarbeiten:
 - KI-Chat mit Paper-Kontext
 - Abbildungs-/Tabellenextraktion
 - OCR-Datenintegration
-
-### ☁️ Context Cloud
-
-Cloud-basiertes Kontextmanagement mit vollständiger SDK-Unterstützung:
-
-```typescript
-import { ContextCloudClient } from '@prismer/context-cloud-sdk';
-
-const client = new ContextCloudClient({ apiKey: 'your-api-key' });
-
-// Kontext erstellen und abfragen
-const context = await client.contexts.create({ name: 'Forschungsprojekt' });
-const response = await client.query({
-  contextId: context.id,
-  question: 'Was sind die Hauptergebnisse?'
-});
-```
 
 ### ✍️ LaTeX-Editor
 
@@ -138,7 +121,6 @@ Alle Kernkomponenten sind MIT-lizenziert und können unabhängig verwendet werde
 | Paket | Beschreibung |
 |-------|--------------|
 | `@prismer/paper-reader` | PDF-Reader mit KI-Chat |
-| `@prismer/context-cloud-sdk` | Context Cloud TypeScript SDK |
 | `@prismer/latex-editor` | LaTeX-Editor mit Live-Vorschau |
 | `@prismer/academic-tools` | arXiv, Semantic Scholar APIs |
 | `@prismer/jupyter-kernel` | Browser-native Notebooks |
@@ -165,10 +147,9 @@ docker run -d -p 3000:3000 prismer/prismer
 | Fertig | In Arbeit |
 |--------|-----------|
 | ✅ Paper-Reader | 🚧 Reviewer Agent |
-| ✅ Context Cloud | 🚧 npm-Paket-Extraktion |
-| ✅ Context Cloud SDK | 🚧 Dokumentationsseite |
-| ✅ LaTeX-Editor | 🚧 Self-Hosting-Anleitung |
-| ✅ Multi-Agent-System | |
+| ✅ LaTeX-Editor | 🚧 npm-Paket-Extraktion |
+| ✅ Multi-Agent-System | 🚧 Dokumentationsseite |
+| | 🚧 Self-Hosting-Anleitung |
 
 Siehe [vollständige Roadmap](../roadmap.md) für Details.
 

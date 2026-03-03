@@ -1,0 +1,131 @@
+/**
+ * Jupyter Notebook 样式
+ * 包含 DataFrame、HTML 输出等特定样式
+ */
+
+/* DataFrame 表格样式 */
+.jupyter-dataframe {
+  overflow-x: auto;
+}
+
+.jupyter-dataframe table {
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Menlo', 'Monaco', monospace;
+}
+
+.jupyter-dataframe table thead th {
+  background-color: rgba(51, 65, 85, 0.5);
+  color: #e2e8f0;
+  font-weight: 600;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 2px solid #475569;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.jupyter-dataframe table tbody td {
+  padding: 6px 12px;
+  border-bottom: 1px solid #334155;
+  color: #cbd5e1;
+}
+
+.jupyter-dataframe table tbody tr:hover {
+  background-color: rgba(51, 65, 85, 0.3);
+}
+
+.jupyter-dataframe table tbody tr:nth-child(even) {
+  background-color: rgba(30, 41, 59, 0.5);
+}
+
+/* DataFrame 索引列 */
+.jupyter-dataframe table tbody th {
+  background-color: rgba(51, 65, 85, 0.3);
+  color: #94a3b8;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-bottom: 1px solid #334155;
+  border-right: 1px solid #475569;
+}
+
+/* HTML 输出通用样式 */
+.jupyter-html-output {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.jupyter-html-output table {
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.jupyter-html-output table th,
+.jupyter-html-output table td {
+  padding: 4px 8px;
+  border: 1px solid #475569;
+}
+
+.jupyter-html-output table th {
+  background-color: rgba(51, 65, 85, 0.5);
+}
+
+.jupyter-html-output img {
+  max-width: 100%;
+  height: auto;
+}
+
+.jupyter-html-output a {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+.jupyter-html-output a:hover {
+  color: #93c5fd;
+}
+
+.jupyter-html-output code {
+  background-color: rgba(30, 41, 59, 0.8);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Menlo', 'Monaco', monospace;
+  font-size: 0.9em;
+}
+
+.jupyter-html-output pre {
+  background-color: rgba(30, 41, 59, 0.8);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+/* Matplotlib/Plotly 图表容器 */
+.jupyter-html-output .plotly-graph-div,
+.jupyter-html-output .matplotlib-figure {
+  margin: 8px 0;
+}
+
+/* 滚动条样式 */
+.jupyter-dataframe::-webkit-scrollbar,
+.jupyter-html-output::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.jupyter-dataframe::-webkit-scrollbar-track,
+.jupyter-html-output::-webkit-scrollbar-track {
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 4px;
+}
+
+.jupyter-dataframe::-webkit-scrollbar-thumb,
+.jupyter-html-output::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.jupyter-dataframe::-webkit-scrollbar-thumb:hover,
+.jupyter-html-output::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

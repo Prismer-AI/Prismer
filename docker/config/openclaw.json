@@ -1,48 +1,113 @@
 {
-  "agents": {
-    "defaults": {
-      "workspace": "/workspace",
-      "model": {
-        "primary": "google/gemini-2.5-flash"
-      },
-      "compaction": {
-        "mode": "safeguard"
-      },
-      "maxConcurrent": 2,
-      "subagents": {
-        "maxConcurrent": 4
+  "gateway": {
+    "port": 18900,
+    "mode": "local",
+    "auth": {
+      "token": "${OPENCLAW_GATEWAY_TOKEN:-prismer-dev-token}"
+    }
+  },
+
+  "models": {
+    "providers": {
+      "prismer-gateway": {
+        "baseUrl": "http://34.60.178.0:3000/v1",
+        "apiKey": "sk-placeholder",
+        "api": "openai-completions",
+        "models": [
+          {"id": "us-kimi-k2.5", "name": "Kimi K2.5"},
+          {"id": "us-kimi-k2-turbo-preview", "name": "Kimi K2 Turbo"},
+          {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4"}
+        ]
       }
     }
   },
 
-  "gateway": {
-    "mode": "local",
-    "port": 18900,
-    "bind": "loopback",
-    "auth": {
-      "mode": "token",
-      "token": "__REPLACE_ON_FIRST_RUN__"
+  "channels": {
+    "prismer-im": {
+      "accounts": {
+        "default": {
+          "imServerUrl": "${PRISMER_IM_SERVER_URL:-}",
+          "agentToken": "${PRISMER_AGENT_TOKEN:-}",
+          "conversationId": "${PRISMER_CONVERSATION_ID:-workspace-default}"
+        }
+      }
     }
   },
 
-  "auth": {
-    "profiles": {}
+  "agents": {
+    "defaults": {
+      "workspace": "/workspace",
+      "model": {
+        "primary": "prismer-gateway/us-kimi-k2.5",
+        "fallbacks": ["prismer-gateway/claude-sonnet-4-20250514"]
+      },
+      "thinkingDefault": "low",
+      "timeoutSeconds": 600,
+      "maxConcurrent": 3,
+      "contextTokens": 200000,
+      "sandbox": {
+        "browser": {
+          "enabled": true
+        }
+      }
+    },
+    "list": [
+      {
+        "id": "academic",
+        "default": true,
+        "name": "Prismer Academic Assistant",
+        "workspace": "/workspace",
+        "identity": {
+          "name": "Prismer",
+          "theme": "academic research assistant",
+          "emoji": "📚"
+        },
+        "tools": {
+          "profile": "full"
+        }
+      }
+    ]
+  },
+
+  "session": {
+    "scope": "per-sender"
+  },
+
+  "tools": {
+    "profile": "full"
+  },
+
+  "skills": {
+    "allowBundled": ["*"],
+    "load": {
+      "extraDirs": ["/home/user/.openclaw/workspace/skills"]
+    }
   },
 
   "plugins": {
-    "entries": {}
-  },
-
-  "channels": {},
-
-  "skills": {
-    "install": {
-      "nodeManager": "npm"
+    "enabled": true,
+    "load": {
+      "paths": [
+        "/opt/prismer/plugins/prismer-im",
+        "/opt/prismer/plugins/prismer-workspace"
+      ]
+    },
+    "entries": {
+      "prismer-im": {
+        "enabled": true
+      },
+      "prismer-workspace": {
+        "enabled": true,
+        "config": {
+          "apiBaseUrl": "${PRISMER_API_BASE_URL:-http://host.docker.internal:3000}",
+          "agentId": "${AGENT_ID:-default}"
+        }
+      }
     }
   },
 
-  "commands": {
-    "native": "auto",
-    "nativeSkills": "auto"
+  "logging": {
+    "level": "info",
+    "consoleLevel": "info"
   }
 }

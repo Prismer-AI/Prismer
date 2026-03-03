@@ -1,0 +1,8 @@
+{
+  "baseVersion": "5.0",
+  "imageVersion": "5.0",
+  "prismer-im": "0.2.0",
+  "prismer-workspace": "0.5.0",
+  "prismer-tools": "0.1.0",
+  "container-gateway": "1.1.0"
+}

@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""
+prismer-workspace-sync — Workspace file directory monitor and sync utility.
+
+Usage:
+  prismer-workspace-sync list              List tracked directories and files
+  prismer-workspace-sync snapshot          Create snapshot of workspace state
+  prismer-workspace-sync directives        List pending directives
+  prismer-workspace-sync clear-directives  Clear processed directives
+
+Workspace directory standard:
+  /workspace/projects/     — Documents, LaTeX projects, source files
+  /workspace/notebooks/    — Jupyter notebooks (.ipynb)
+  /workspace/output/       — Compiled artifacts (PDF, images, data)
+  /workspace/skills/       — Installed skill definitions
+  /workspace/.openclaw/directives/  — UI directive queue for Bridge
+"""
+
+import sys
+import json
+import os
+from pathlib import Path
+from datetime import datetime
+
+WORKSPACE = Path("/workspace")
+DIRECTIVES_DIR = WORKSPACE / ".openclaw" / "directives"
+TRACKED_DIRS = {
+    "projects": WORKSPACE / "projects",
+    "notebooks": WORKSPACE / "notebooks",
+    "output": WORKSPACE / "output",
+    "skills": WORKSPACE / "skills",
+}
+
+def list_workspace():
+    """List tracked directories and their contents."""
+    for name, dir_path in TRACKED_DIRS.items():
+        if not dir_path.exists():
+            print(f"  {name}/  (empty)")
+            continue
+        files = sorted(dir_path.rglob("*"))
+        file_count = sum(1 for f in files if f.is_file())
+        print(f"  {name}/  ({file_count} files)")
+        for f in files:
+            if f.is_file():
+                size = f.stat().st_size
+                mtime = datetime.fromtimestamp(f.stat().st_mtime).strftime("%H:%M:%S")
+                rel = f.relative_to(WORKSPACE)
+                if size > 1024 * 1024:
+                    size_str = f"{size / 1024 / 1024:.1f}MB"
+                elif size > 1024:
+                    size_str = f"{size / 1024:.1f}KB"
+                else:
+                    size_str = f"{size}B"
+                print(f"    {rel}  ({size_str}, {mtime})")
+
+def snapshot():
+    """Create a JSON snapshot of workspace file state."""
+    result = {"timestamp": datetime.now().isoformat(), "directories": {}}
+    for name, dir_path in TRACKED_DIRS.items():
+        files = []
+        if dir_path.exists():
+            for f in sorted(dir_path.rglob("*")):
+                if f.is_file():
+                    stat = f.stat()
+                    files.append({
+                        "path": str(f.relative_to(WORKSPACE)),
+                        "size": stat.st_size,
+                        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        "extension": f.suffix,
+                    })
+        result["directories"][name] = files
+
+    # Also include pending directives count
+    if DIRECTIVES_DIR.exists():
+        directives = list(DIRECTIVES_DIR.glob("*.json"))
+        result["pending_directives"] = len(directives)
+    else:
+        result["pending_directives"] = 0
+
+    print(json.dumps(result, indent=2))
+    return result
+
+def list_directives():
+    """List pending directives."""
+    if not DIRECTIVES_DIR.exists():
+        print("No directives directory")
+        return
+    directives = sorted(DIRECTIVES_DIR.glob("*.json"))
+    if not directives:
+        print("No pending directives")
+        return
+    print(f"{len(directives)} pending directives:")
+    for d in directives:
+        try:
+            data = json.loads(d.read_text())
+            dtype = data.get("type", "unknown")
+            target = data.get("target", "")
+            print(f"  {d.name}: {dtype} → {target}")
+        except Exception:
+            print(f"  {d.name}: (parse error)")
+
+def clear_directives():
+    """Clear all processed directives."""
+    if not DIRECTIVES_DIR.exists():
+        print("No directives directory")
+        return
+    directives = list(DIRECTIVES_DIR.glob("*.json"))
+    for d in directives:
+        d.unlink()
+    print(f"Cleared {len(directives)} directives")
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+
+    if cmd == "list":
+        list_workspace()
+    elif cmd == "snapshot":
+        snapshot()
+    elif cmd == "directives":
+        list_directives()
+    elif cmd == "clear-directives":
+        clear_directives()
+    else:
+        print(__doc__)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

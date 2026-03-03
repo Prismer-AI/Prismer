@@ -1,0 +1,514 @@
+// ==============================================================================
+// Prismer Library - Prisma Schema 更新参考
+// ==============================================================================
+// 
+// 此文件用于参考，实际修改请更新 prisma/schema.prisma
+// 
+// 变更内容:
+//   1. Favorite, Like, UserPaperState, Activity, NoteCitation: 
+//      paperId -> paperArxivId (不再外键关联 Paper)
+//   2. 新增 AISession, AIMessage 模型
+//   3. 新增 UserCategory 模型
+//   4. User 模型添加新关系
+//
+// ==============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==============================================================================
+// 用户系统
+// ==============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String?
+  name          String?
+  avatar        String?
+  bio           String?
+  organization  String?
+  
+  // OAuth
+  googleId      String?   @unique
+  githubId      String?   @unique
+  
+  // 状态
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  lastLoginAt   DateTime?
+  
+  // 时间戳
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // 关系
+  notebooks     Notebook[]
+  notes         Note[]
+  favorites     Favorite[]
+  likes         Like[]
+  comments      Comment[]
+  activities    Activity[]
+  uploads       Upload[]
+  paperStates   UserPaperState[]
+  sessions      Session[]
+  accounts      Account[]
+  
+  // 新增关系
+  aiSessions     AISession[]
+  userCategories UserCategory[]
+}
+
+// NextAuth 账户
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([provider, providerAccountId])
+}
+
+// NextAuth 会话
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// NextAuth 验证 Token
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  
+  @@unique([identifier, token])
+}
+
+// ==============================================================================
+// 论文系统 (保持不变 - 用于本地开发)
+// ==============================================================================
+
+model Paper {
+  id            String    @id @default(cuid())
+  
+  title         String
+  abstract      String?
+  authors       String?
+  
+  categories    String?
+  mainCategory  String?
+  platform      String    @default("arxiv")
+  
+  arxivId       String?   @unique
+  doi           String?
+  
+  pdfUrl        String?
+  thumbnailUrl  String?
+  s3Key         String?
+  
+  publishedAt   DateTime?
+  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime  @default(now())
+  
+  viewCount     Int       @default(0)
+  likeCount     Int       @default(0)
+  commentCount  Int       @default(0)
+  
+  // 注意: 这些关系仅用于本地开发
+  // 生产环境中 Favorite/Like 等直接存储 paperArxivId
+  citations     NoteCitation[]
+  ocrTask       OcrTask?
+  figures       Figure[]
+}
+
+// OCR 任务
+model OcrTask {
+  id            String    @id @default(cuid())
+  paperId       String    @unique
+  
+  status        String    @default("pending")
+  priority      Int       @default(0)
+  retryCount    Int       @default(0)
+  maxRetries    Int       @default(3)
+  
+  workerId      String?
+  engineName    String?
+  engineVersion String?
+  
+  s3Bucket      String?
+  s3BasePath    String?
+  mdFileName    String?   @default("output.md")
+  jsonFileName  String?   @default("result.json")
+  
+  pageCount     Int       @default(0)
+  imageCount    Int       @default(0)
+  tableCount    Int       @default(0)
+  equationCount Int       @default(0)
+  charCount     Int       @default(0)
+  
+  startedAt     DateTime?
+  completedAt   DateTime?
+  processingMs  Int?
+  
+  lastError     String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  paper         Paper     @relation(fields: [paperId], references: [id], onDelete: Cascade)
+}
+
+model Figure {
+  id          String    @id @default(cuid())
+  paperId     String
+  
+  pageNumber  Int
+  figureIndex Int
+  type        String    @default("image")
+  caption     String?
+  s3Key       String?
+  
+  createdAt   DateTime  @default(now())
+  
+  paper       Paper     @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  
+  @@index([paperId])
+}
+
+// ==============================================================================
+// 笔记系统
+// ==============================================================================
+
+model Notebook {
+  id          String    @id @default(cuid())
+  userId      String
+  
+  name        String
+  description String?
+  color       String?
+  icon        String?
+  isPublic    Boolean   @default(false)
+  sortOrder   Int       @default(0)  // 新增: 排序
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes       Note[]
+  
+  @@index([userId])
+  @@index([userId, sortOrder])
+}
+
+model Note {
+  id            String    @id @default(cuid())
+  notebookId    String
+  userId        String
+  
+  title         String?
+  content       String
+  contentFormat String    @default("html")
+  tags          String?
+  
+  wordCount     Int       @default(0)  // 新增: 字数统计
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  notebook      Notebook  @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  citations     NoteCitation[]
+  
+  @@index([notebookId])
+  @@index([userId])
+  @@index([updatedAt])
+}
+
+model NoteCitation {
+  id            String    @id @default(cuid())
+  noteId        String
+  
+  // 修改: paperId -> paperArxivId (不再外键关联)
+  paperArxivId  String    @map("paper_arxiv_id")
+  
+  pageNumber    Int?
+  excerpt       String?
+  type          String    @default("text")
+  positionData  String?   // 新增: 高亮位置信息 (JSON)
+  
+  createdAt     DateTime  @default(now())
+  
+  note          Note      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  // 移除: paper Paper @relation(...)
+  
+  // 保留临时兼容字段 (可选)
+  paper         Paper?    @relation(fields: [paperId], references: [id])
+  paperId       String?
+  
+  @@index([noteId])
+  @@index([paperArxivId])
+}
+
+// ==============================================================================
+// 社交功能 (修改)
+// ==============================================================================
+
+model Favorite {
+  id            String    @id @default(cuid())
+  userId        String
+  
+  // 修改: paperId -> paperArxivId
+  paperArxivId  String    @map("paper_arxiv_id")
+  
+  folder        String?   // 新增: 收藏夹分组
+  
+  createdAt     DateTime  @default(now())
+  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // 移除: paper Paper @relation(...)
+  
+  @@unique([userId, paperArxivId])
+  @@index([userId])
+  @@index([userId, createdAt])
+}
+
+model Like {
+  id            String    @id @default(cuid())
+  userId        String
+  
+  // 修改: paperId -> paperArxivId
+  paperArxivId  String    @map("paper_arxiv_id")
+  
+  createdAt     DateTime  @default(now())
+  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // 移除: paper Paper @relation(...)
+  
+  @@unique([userId, paperArxivId])
+  @@index([paperArxivId])
+}
+
+model Comment {
+  id            String    @id @default(cuid())
+  userId        String
+  
+  // 修改: paperId -> paperArxivId
+  paperArxivId  String    @map("paper_arxiv_id")
+  
+  parentId      String?
+  
+  content       String
+  likeCount     Int       @default(0)
+  isDeleted     Boolean   @default(false)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent        Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies       Comment[] @relation("CommentReplies")
+  
+  @@index([paperArxivId])
+  @@index([userId])
+}
+
+// ==============================================================================
+// 用户行为 (修改)
+// ==============================================================================
+
+model Activity {
+  id            String    @id @default(cuid())
+  userId        String
+  
+  // 修改: paperId -> paperArxivId
+  paperArxivId  String?   @map("paper_arxiv_id")
+  
+  action        String
+  metadata      String?
+  
+  // 新增: 来源信息
+  source        String?
+  ipAddress     String?
+  userAgent     String?
+  
+  createdAt     DateTime  @default(now())
+  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt])
+  @@index([action])
+  @@index([paperArxivId])
+}
+
+model UserPaperState {
+  userId          String
+  
+  // 修改: paperId -> paperArxivId
+  paperArxivId    String    @map("paper_arxiv_id")
+  
+  isFavorite      Boolean   @default(false)
+  isDownloaded    Boolean   @default(false)
+  readingProgress Int       @default(0)
+  lastReadPage    Int       @default(0)
+  totalReadTime   Int       @default(0)
+  lastReadAt      DateTime?
+  
+  // 新增: AI 分析缓存
+  aiSummary       String?
+  aiInsights      String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // 移除: paper Paper @relation(...)
+  
+  @@id([userId, paperArxivId])
+  @@index([userId, lastReadAt])
+}
+
+// ==============================================================================
+// 上传系统 (保持不变)
+// ==============================================================================
+
+model Upload {
+  id          String    @id @default(cuid())
+  userId      String
+  
+  fileName    String
+  fileSize    Int
+  contentHash String?
+  
+  s3Key       String
+  status      String    @default("pending")
+  
+  paperId     String?
+  error       String?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([status])
+}
+
+// ==============================================================================
+// 缓存 (保持不变)
+// ==============================================================================
+
+model StatsCache {
+  id        String    @id @default(cuid())
+  key       String    @unique
+  value     String
+  expiresAt DateTime
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  @@index([expiresAt])
+}
+
+// ==============================================================================
+// AI 会话系统 (新增)
+// ==============================================================================
+
+model AISession {
+  id            String    @id @default(cuid())
+  userId        String
+  
+  // 关联论文 (可选)
+  paperArxivId  String?   @map("paper_arxiv_id")
+  
+  title         String?
+  sessionType   String    @default("paper_qa")  // paper_qa, general, research
+  
+  // 上下文 (论文列表、设置等)
+  context       String?
+  
+  messageCount  Int       @default(0)
+  isArchived    Boolean   @default(false)
+  isPinned      Boolean   @default(false)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      AIMessage[]
+  
+  @@index([userId])
+  @@index([userId, updatedAt])
+  @@index([paperArxivId])
+}
+
+model AIMessage {
+  id          String    @id @default(cuid())
+  sessionId   String
+  
+  role        String    // user, assistant, system
+  content     String
+  
+  // AI 元数据
+  model       String?
+  tokensUsed  Int?
+  
+  // 论文引用
+  citations   String?   // JSON
+  
+  createdAt   DateTime  @default(now())
+  
+  session     AISession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  @@index([sessionId])
+  @@index([sessionId, createdAt])
+}
+
+// ==============================================================================
+// 用户分类偏好 (新增)
+// ==============================================================================
+
+model UserCategory {
+  id               String    @id @default(cuid())
+  userId           String
+  
+  categoryId       String    // 分类 ID (如 cs.AI)
+  categoryName     String    // 显示名称
+  categoryColor    String?   // 颜色
+  categoryKeywords String?   // JSON: 关键词
+  
+  isCustom         Boolean   @default(false)
+  isVisible        Boolean   @default(true)
+  sortOrder        Int       @default(0)
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, categoryId])
+  @@index([userId])
+  @@index([userId, sortOrder])
+}

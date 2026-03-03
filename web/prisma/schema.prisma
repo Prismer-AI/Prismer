@@ -1,0 +1,833 @@
+// ==============================================================================
+// Prismer Library - 本地开发数据库 Schema (SQLite)
+// ==============================================================================
+// 
+// 本地开发使用 SQLite，生产环境使用 MySQL
+// 
+// 运行命令:
+//   npx prisma generate    - 生成 Prisma Client
+//   npx prisma db push     - 创建/更新数据库
+//   npx prisma studio      - 打开可视化管理界面
+//
+// ==============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==============================================================================
+// 用户系统
+// ==============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String?
+  name          String?
+  avatar        String?
+  bio           String?
+  organization  String?
+
+  // OAuth
+  googleId      String?   @unique
+  githubId      String?   @unique
+
+  // 状态
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  lastLoginAt   DateTime?
+
+  // 时间戳
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // 关系
+  notebooks     Notebook[]
+  notes         Note[]
+  favorites     Favorite[]
+  likes         Like[]
+  comments      Comment[]
+  activities    Activity[]
+  uploads       Upload[]
+  paperStates   UserPaperState[]
+  sessions      Session[]
+  accounts      Account[]
+  workspaces    WorkspaceSession[]
+  wsParticipants WorkspaceParticipant[]
+  agentInstances AgentInstance[]
+  llmUsageLogs  LLMUsageLog[]
+  imUser        IMUser?
+}
+
+// NextAuth 账户
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([provider, providerAccountId])
+}
+
+// NextAuth 会话
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// NextAuth 验证 Token
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  
+  @@unique([identifier, token])
+}
+
+// ==============================================================================
+// 论文系统
+// ==============================================================================
+
+model Paper {
+  id            String    @id @default(cuid())
+  
+  // 基本信息
+  title         String
+  abstract      String?
+  authors       String?   // JSON string: ["Author 1", "Author 2"]
+  
+  // 分类
+  categories    String?   // JSON string: ["cs.AI", "cs.LG"]
+  mainCategory  String?
+  platform      String    @default("arxiv")
+  
+  // 标识符
+  arxivId       String?   @unique
+  doi           String?
+  
+  // 资源链接
+  pdfUrl        String?
+  thumbnailUrl  String?
+  s3Key         String?
+  
+  // 元数据
+  publishedAt   DateTime?
+  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime  @default(now())
+  
+  // 统计
+  viewCount     Int       @default(0)
+  likeCount     Int       @default(0)
+  commentCount  Int       @default(0)
+  
+  // 关系
+  favorites     Favorite[]
+  likes         Like[]
+  comments      Comment[]
+  citations     NoteCitation[]
+  paperStates   UserPaperState[]
+  ocrTask       OcrTask?
+  figures       Figure[]
+}
+
+// OCR 任务
+model OcrTask {
+  id            String    @id @default(cuid())
+  paperId       String    @unique
+  
+  // 状态
+  status        String    @default("pending") // pending, processing, completed, failed
+  priority      Int       @default(0)
+  retryCount    Int       @default(0)
+  maxRetries    Int       @default(3)
+  
+  // Worker
+  workerId      String?
+  engineName    String?
+  engineVersion String?
+  
+  // S3 存储
+  s3Bucket      String?
+  s3BasePath    String?
+  mdFileName    String?   @default("output.md")
+  jsonFileName  String?   @default("result.json")
+  
+  // 内容统计
+  pageCount     Int       @default(0)
+  imageCount    Int       @default(0)
+  tableCount    Int       @default(0)
+  equationCount Int       @default(0)
+  charCount     Int       @default(0)
+  
+  // 时间
+  startedAt     DateTime?
+  completedAt   DateTime?
+  processingMs  Int?
+  
+  // 错误
+  lastError     String?
+  
+  // 时间戳
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  paper         Paper     @relation(fields: [paperId], references: [id], onDelete: Cascade)
+}
+
+// 论文图片/图表
+model Figure {
+  id          String    @id @default(cuid())
+  paperId     String
+  
+  pageNumber  Int
+  figureIndex Int
+  type        String    @default("image") // image, table, equation
+  caption     String?
+  s3Key       String?
+  
+  createdAt   DateTime  @default(now())
+  
+  paper       Paper     @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  
+  @@index([paperId])
+}
+
+// ==============================================================================
+// 笔记系统
+// ==============================================================================
+
+model Notebook {
+  id          String    @id @default(cuid())
+  userId      String
+  
+  name        String
+  description String?
+  color       String?
+  icon        String?
+  isPublic    Boolean   @default(false)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes       Note[]
+  
+  @@index([userId])
+}
+
+model Note {
+  id            String    @id @default(cuid())
+  notebookId    String
+  userId        String
+  
+  title         String?
+  content       String    // HTML or Markdown
+  contentFormat String    @default("html")
+  tags          String?   // JSON string
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  notebook      Notebook  @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  citations     NoteCitation[]
+  
+  @@index([notebookId])
+  @@index([userId])
+}
+
+model NoteCitation {
+  id          String    @id @default(cuid())
+  noteId      String
+  paperId     String
+  
+  pageNumber  Int?
+  excerpt     String?
+  type        String    @default("text")
+  
+  createdAt   DateTime  @default(now())
+  
+  note        Note      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  paper       Paper     @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  
+  @@index([noteId])
+  @@index([paperId])
+}
+
+// ==============================================================================
+// 社交功能
+// ==============================================================================
+
+model Favorite {
+  id        String    @id @default(cuid())
+  userId    String
+  paperId   String
+  
+  createdAt DateTime  @default(now())
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paper     Paper     @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, paperId])
+  @@index([userId])
+}
+
+model Like {
+  id        String    @id @default(cuid())
+  userId    String
+  paperId   String
+  
+  createdAt DateTime  @default(now())
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paper     Paper     @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, paperId])
+  @@index([paperId])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  userId    String
+  paperId   String
+  parentId  String?
+  
+  content   String
+  likeCount Int       @default(0)
+  isDeleted Boolean   @default(false)
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paper     Paper     @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+  
+  @@index([paperId])
+  @@index([userId])
+}
+
+// ==============================================================================
+// 用户行为
+// ==============================================================================
+
+model Activity {
+  id        String    @id @default(cuid())
+  userId    String
+  paperId   String?
+  
+  action    String    // view, like, favorite, comment, download, search
+  metadata  String?   // JSON string
+  
+  createdAt DateTime  @default(now())
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt])
+  @@index([action])
+}
+
+model UserPaperState {
+  userId          String
+  paperId         String
+  
+  isFavorite      Boolean   @default(false)
+  isDownloaded    Boolean   @default(false)
+  readingProgress Int       @default(0)
+  lastReadPage    Int       @default(0)
+  totalReadTime   Int       @default(0)
+  lastReadAt      DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paper           Paper     @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  
+  @@id([userId, paperId])
+}
+
+// ==============================================================================
+// 上传系统
+// ==============================================================================
+
+model Upload {
+  id          String    @id @default(cuid())
+  userId      String
+  
+  fileName    String
+  fileSize    Int
+  contentHash String?
+  
+  s3Key       String
+  status      String    @default("pending") // pending, uploading, processing, completed, failed
+  
+  paperId     String?
+  error       String?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([status])
+}
+
+// ==============================================================================
+// 工作空间系统
+// ==============================================================================
+
+model WorkspaceSession {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  ownerId       String
+  status        String   @default("active")     // active | archived
+  settings      String?                         // JSON: WorkspaceSettings
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner         User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  messages      WorkspaceMessage[]
+  tasks         WorkspaceTask[]
+  participants  WorkspaceParticipant[]
+  timeline      WorkspaceTimelineEvent[]
+  snapshots     WorkspaceStateSnapshot[]
+  componentStates WorkspaceComponentState[]
+  agentInstance AgentInstance?
+  workspaceFiles WorkspaceFile[]
+  wsSnapshots   WorkspaceSnapshot[]
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model WorkspaceParticipant {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  userId        String?
+  agentId       String?
+  name          String
+  avatar        String?
+  type          String                           // user | agent
+  role          String                           // owner | member | agent | collaborator | advisor
+  status        String   @default("offline")     // online | offline | busy
+  capabilities  String?                          // JSON: string[]
+  joinedAt      DateTime @default(now())
+
+  workspace     WorkspaceSession @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+}
+
+model WorkspaceMessage {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  senderId      String
+  senderType    String                           // user | agent
+  senderName    String
+  senderAvatar  String?
+  content       String                           // Message text
+  contentType   String   @default("text")        // text | markdown | code | image | file
+  actions       String?                          // JSON: AgentAction[]
+  interactive   String?                          // JSON: InteractiveComponent[]
+  uiDirectives  String?                          // JSON: UIDirective[]
+  agentHandoff  String?                          // JSON: AgentHandoff
+  references    String?                          // JSON: string[]
+  replyTo       String?
+  metadata      String?                          // JSON: Record<string, unknown>
+
+  createdAt     DateTime @default(now())
+
+  workspace     WorkspaceSession @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model WorkspaceTask {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  title         String
+  description   String?
+  status        String   @default("pending")    // pending | running | completed | error
+  progress      Int      @default(0)            // 0-100
+  subtasks      String?                          // JSON: SubTask[]
+  outputs       String?                          // JSON: TaskOutput[]
+  dependencies  String?                          // JSON: string[] (task IDs)
+  startTime     DateTime?
+  endTime       DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace     WorkspaceSession @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([status])
+}
+
+model WorkspaceTimelineEvent {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  timestamp     BigInt                           // epoch ms
+  componentType String
+  action        String                           // edit | create | delete | navigate | execute | workflow_* | agent_* | user_*
+  description   String
+  snapshot      String?                          // JSON: StateSnapshot
+  actorId       String?
+  actorType     String?                          // user | agent
+  messageId     String?
+  duration      Int?
+
+  createdAt     DateTime @default(now())
+
+  workspace     WorkspaceSession @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, timestamp])
+}
+
+model WorkspaceStateSnapshot {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  layout          String?                        // JSON: LayoutState
+  components      String?                        // JSON: ComponentStates
+  diff            String?                        // JSON: DiffState
+  timelineEventId String?
+
+  createdAt       DateTime @default(now())
+
+  workspace       WorkspaceSession @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model WorkspaceComponentState {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  componentType String                           // ComponentType enum value
+  state         String                           // JSON: component-specific state object
+
+  updatedAt     DateTime @updatedAt
+
+  workspace     WorkspaceSession @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, componentType])
+}
+
+// ==============================================================================
+// Workspace 文件持久化 (OpenClaw Workspace Files)
+// ==============================================================================
+
+model WorkspaceFile {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  path          String                           // 相对路径: IDENTITY.md, skills/latex/SKILL.md
+  content       String                           // 文件内容
+  contentHash   String                           // SHA256 用于同步
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace     WorkspaceSession @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, path])
+  @@index([workspaceId])
+  @@index([updatedAt])
+}
+
+model WorkspaceSnapshot {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  version       Int
+  description   String?
+  filesManifest String                           // JSON: [{path, hash}]
+  createdAt     DateTime @default(now())
+
+  workspace     WorkspaceSession @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, version])
+  @@index([workspaceId, createdAt])
+}
+
+// ==============================================================================
+// 缓存
+// ==============================================================================
+
+model StatsCache {
+  id        String    @id @default(cuid())
+  key       String    @unique
+  value     String    // JSON string
+  expiresAt DateTime
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([expiresAt])
+}
+
+// ==============================================================================
+// LLM Gateway 用量追踪
+// ==============================================================================
+
+model LLMUsageLog {
+  id              String   @id @default(cuid())
+  agentInstanceId String
+  userId          String
+  provider        String                           // anthropic | openai | prismer
+  model           String                           // claude-sonnet-4-20250514 等
+  inputTokens     Int
+  outputTokens    Int
+  totalTokens     Int
+  costUsd         Float    @default(0)             // 费用 (USD)
+  latencyMs       Int                              // 请求延迟 (ms)
+  requestId       String?                          // 外部请求 ID
+  createdAt       DateTime @default(now())
+
+  agentInstance   AgentInstance @relation(fields: [agentInstanceId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([agentInstanceId, createdAt])
+  @@index([userId, createdAt])
+}
+
+// ==============================================================================
+// Agent Instance 模块 (OpenClaw 容器化 Agent)
+// ==============================================================================
+
+model AgentInstance {
+  id              String   @id @default(cuid())
+  name            String
+  avatar          String?
+  description     String?
+  ownerId         String
+  workspaceId     String   @unique              // 1:1 绑定到 Workspace
+  containerId     String?                        // 关联容器（可延迟创建）
+  status          String   @default("stopped")  // stopped | starting | running | error
+  gatewayUrl      String?                        // OpenClaw Gateway URL
+  configId        String?                        // 当前活跃配置
+  capabilities    String?                        // JSON: string[] 预留扩展
+  installedSkills String?                        // JSON: InstalledSkill[] - 已安装的技能列表
+  metadata        String?                        // JSON: 任意扩展数据
+  lastActiveAt    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  owner          User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  workspace      WorkspaceSession  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  config         AgentConfig?      @relation(fields: [configId], references: [id], onDelete: SetNull)
+  container      Container?
+  deployments    ConfigDeployment[]
+  usageLogs      LLMUsageLog[]
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model AgentConfig {
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  templateType   String?                        // mathematician | finance-researcher | cs-researcher
+  modelProvider  String   @default("anthropic")
+  modelName      String   @default("claude-sonnet-4-20250514")
+  systemPrompt   String?                        // 系统提示词
+  skills         String?                        // JSON: SkillConfig[]
+  tools          String?                        // JSON: ToolConfig[]
+  sandbox        String?                        // JSON: SandboxConfig
+  customConfig   String?                        // JSON: 自定义扩展配置
+  isTemplate     Boolean  @default(false)       // 是否为模板
+  isPublic       Boolean  @default(false)       // 是否公开
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  agents         AgentInstance[]
+  deployments    ConfigDeployment[]
+
+  @@index([isTemplate])
+  @@index([templateType])
+}
+
+model Container {
+  id              String   @id @default(cuid())
+  agentInstanceId String   @unique              // 1:1 关联 Agent
+  orchestrator    String   @default("docker")   // docker | kubernetes | podman
+  containerId     String                        // 实际容器 ID
+  imageTag        String                        // 镜像标签
+  status          String   @default("pending")  // pending | created | running | stopped | error
+  hostPort        Int?                          // 宿主机端口
+  gatewayPort     Int      @default(18789)      // OpenClaw Gateway 端口
+  ports           String?                       // JSON: [{containerPort, hostPort, protocol}]
+  resourceLimits  String?                       // JSON: 内存、CPU 限制
+  healthStatus    String?                       // JSON: 健康检查结果
+  logs            String?                       // 最近日志
+  startedAt       DateTime?
+  stoppedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  agentInstance   AgentInstance @relation(fields: [agentInstanceId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+model ConfigDeployment {
+  id              String   @id @default(cuid())
+  agentInstanceId String
+  configId        String?                        // 可选，删除配置后保留部署记录
+  version         Int      @default(1)           // 部署版本号
+  status          String   @default("pending")   // pending | deploying | deployed | failed
+  deployedConfig  String                         // JSON: 部署时的完整配置快照
+  errorMessage    String?
+  deployedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  agentInstance   AgentInstance @relation(fields: [agentInstanceId], references: [id], onDelete: Cascade)
+  config          AgentConfig?  @relation(fields: [configId], references: [id], onDelete: SetNull)
+
+  @@index([agentInstanceId, createdAt])
+}
+
+// ==============================================================================
+// IM 系统 (即时通讯 - Agent-to-Agent, Agent-to-Human)
+// ==============================================================================
+
+model IMUser {
+  id            String    @id @default(cuid())
+  username      String    @unique
+  displayName   String
+  passwordHash  String?
+  role          String    @default("human")      // human | agent | admin
+  agentType     String?                          // assistant | specialist | orchestrator | tool | bot
+  avatarUrl     String?
+  metadata      String?                          // JSON
+  userId        String?   @unique                // 关联主 User 表（可选）
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  agentCard     IMAgentCard?
+  participations IMParticipant[]
+  sentMessages  IMMessage[]
+  createdConversations IMConversation[]
+
+  @@index([role])
+}
+
+model IMAgentCard {
+  id              String    @id @default(cuid())
+  imUserId        String    @unique
+  name            String
+  description     String    @default("")
+  agentType       String    @default("assistant")
+  capabilities    String    @default("[]")       // JSON: AgentCapability[]
+  protocolVersion String    @default("1.0")
+  endpoint        String?                        // HTTP endpoint for direct invocation
+  metadata        String    @default("{}")       // JSON
+  lastHeartbeat   DateTime?
+  status          String    @default("offline")  // online | busy | idle | offline
+  load            Float     @default(0)          // 0-1 utilization
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  imUser          IMUser    @relation(fields: [imUserId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+model IMConversation {
+  id            String    @id @default(cuid())
+  type          String    @default("direct")     // direct | group | channel
+  title         String?
+  description   String?
+  status        String    @default("active")     // active | archived | deleted
+  metadata      String    @default("{}")         // JSON
+  createdById   String
+  workspaceId   String?   @unique                // 可选：关联 Workspace (1:1)
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  createdBy     IMUser    @relation(fields: [createdById], references: [id])
+  participants  IMParticipant[]
+  messages      IMMessage[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([lastMessageAt])
+}
+
+model IMParticipant {
+  id              String    @id @default(cuid())
+  conversationId  String
+  imUserId        String
+  role            String    @default("member")   // owner | admin | member | observer
+  joinedAt        DateTime  @default(now())
+  leftAt          DateTime?
+
+  conversation    IMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  imUser          IMUser    @relation(fields: [imUserId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, imUserId])
+  @@index([imUserId])
+}
+
+model IMMessage {
+  id              String    @id @default(cuid())
+  conversationId  String
+  senderId        String
+  type            String    @default("text")     // text | markdown | code | image | file | tool_call | tool_result | system_event | thinking
+  content         String    @default("")
+  metadata        String    @default("{}")       // JSON: MessageMetadata
+  parentId        String?                        // For threading
+  status          String    @default("sent")     // sending | sent | delivered | read | failed
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  conversation    IMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender          IMUser    @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@index([parentId])
+}
+
+model IMWebhook {
+  id            String    @id @default(cuid())
+  url           String
+  events        String    @default("[]")         // JSON: string[]
+  secret        String?
+  active        Boolean   @default(true)
+  createdById   String
+  failureCount  Int       @default(0)
+  lastTriggered DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([active])
+}
