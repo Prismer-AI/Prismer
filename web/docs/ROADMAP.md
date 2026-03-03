@@ -21,7 +21,7 @@
 > **Container Image**: v5.0-openclaw (prismer-workspace 0.5.0, gateway 1.1.0). See `docker/VERSIONS.md`.
 > **MVP Full Chain**: Plugin v0.5.0 (26 tools), workspace-collection auto-binding, workspace-aware LaTeX compile, artifact save + gallery pipeline. See `docs/MVP_FULL_CHAIN.md`.
 > Workspace lifecycle management: Readiness gate + disabled states + health monitor + task pipeline ✅
-> **Test Infrastructure**: 四层测试体系 — Unit (~50+) + L1 (21) + L2 (32) + L3 (6) = 59+ tests ✅
+> **Test Infrastructure**: 4-layer test system — Unit (~50+) + L1 (21) + L2 (32) + L3 (6) = 59+ tests ✅
 
 ---
 
@@ -112,7 +112,7 @@ Phase 5             → Ecosystem: npm package extraction, open source
 ### 1.5C. LLM Gateway Unification
 - [ ] Migrate 5 components to `ai-client.ts`
 - [ ] Implement `LLMUsageLog` recording in `/api/ai/chat` (per user, per component)
-- [ ] Validate Nacos `OPENAI_API_BASE_URL` → NewAPI for all environments
+- [ ] Validate `OPENAI_API_BASE_URL` env config → NewAPI for all environments
 
 ### 1.5D. Asset Browser
 - [ ] Create shared `AssetBrowser.tsx` (CommandPalette-style file browser)
@@ -188,7 +188,7 @@ Phase 5             → Ecosystem: npm package extraction, open source
   - Services: LaTeX(:8080), Prover(:8081), Jupyter(:8888), Gateway(:18900), arXiv(:8082)
   - Aggregated health endpoint, WebSocket relay, Jupyter token injection
   - Performance: health check avg 2.4ms, 306 req/s concurrent
-- [x] **Fixed host port 16888** — dev/standalone/k8s 统一端口
+- [x] **Fixed host port 16888** — unified port for dev/standalone/k8s
   - `docker-compose.dev.yml`: `16888:3000`
   - `docker-compose.openclaw.yml`: `16888:3000`
   - `dockerOrchestrator.ts`: `DEFAULT_HOST_PORT = 16888`
@@ -318,7 +318,7 @@ See `docs/ARCH.md` section 6 for detailed data flow diagrams.
 - [x] Fixed `workspaceId` in plugin configSchema (OpenClaw validation error)
 - [x] Built v4.5-openclaw — all 5 services healthy
 
-#### 四层测试体系 ✅
+#### 4-Layer Test System ✅
 - [x] **Unit** (`tests/unit/`, 8 files, vitest): directive mapping, stores, components, hooks, API handlers
 - [x] **Layer 1** (`tests/layer1/`, 5 files, 21 tests): container health, bridge protocol, directive SSE, context API, data tools
 - [x] **Layer 2** (`tests/layer2/`, 7 files, 32 tests): T0 identity, T1 LaTeX, T2 Jupyter, T3 Notes, T4 PDF, T5 Context, component CRUD
