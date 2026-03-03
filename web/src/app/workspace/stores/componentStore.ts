@@ -8,6 +8,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createWorkspaceIsolatedStorage } from '@/lib/storage/userStorageManager';
 import type { ComponentType, ComponentStates, DiffChange } from '../types';
+import { DISABLED_COMPONENTS } from '@/types/workspace';
 
 const { storage: wsComponentStorage, setWorkspaceId: setComponentStoreWorkspaceId } =
   createWorkspaceIsolatedStorage<Pick<ComponentState, 'activeComponent' | 'componentStates'>>('prismer-ws-components', true);
@@ -48,6 +49,7 @@ export const useComponentStore = create<ComponentState & ComponentActions>()(
       ...initialComponentState,
 
       setActiveComponent: (type) => {
+        if (DISABLED_COMPONENTS.has(type)) return;
         set({ activeComponent: type });
       },
 

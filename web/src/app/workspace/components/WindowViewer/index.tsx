@@ -175,16 +175,15 @@ class ComponentErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundary
   }
 }
 
-// 组件名称映射
 const componentNames: Record<ComponentType, string> = {
-  'ai-editor': 'AI 编辑器',
-  'pdf-reader': 'PDF 阅读器',
-  'latex-editor': 'LaTeX 编辑器',
-  'code-playground': '代码沙箱',
-  'bento-gallery': '图片画廊',
-  'three-viewer': '3D 查看器',
-  'ag-grid': '数据表格',
-  'jupyter-notebook': 'Jupyter 笔记本',
+  'ai-editor': 'AI Editor',
+  'pdf-reader': 'PDF Reader',
+  'latex-editor': 'LaTeX Editor',
+  'code-playground': 'Code Playground',
+  'bento-gallery': 'Gallery',
+  'three-viewer': '3D Viewer',
+  'ag-grid': 'Data Grid',
+  'jupyter-notebook': 'Jupyter Notebook',
 };
 
 export const WindowViewer = memo(function WindowViewer({

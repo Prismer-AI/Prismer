@@ -212,13 +212,18 @@ export interface AsyncOperation {
 // Component Availability
 // ============================================================
 
-export type DisabledComponentType = 'pdf-reader' | 'code-playground' | 'bento-gallery' | 'three-viewer' | 'ag-grid' | 'jupyter-notebook';
-export type ActiveComponentType = Exclude<ComponentType, DisabledComponentType>;
-export const DISABLED_COMPONENTS: Set<ComponentType> = new Set<ComponentType>([
+// Components disabled for the current release.
+// Only ai-editor (Notes) and latex-editor are active.
+// Re-enable by removing entries as each component reaches production readiness.
+const DISABLED_COMPONENT_LIST = [
   'pdf-reader',
   'code-playground',
   'bento-gallery',
   'three-viewer',
   'ag-grid',
   'jupyter-notebook',
-]);
+] as const;
+
+export type DisabledComponentType = (typeof DISABLED_COMPONENT_LIST)[number];
+export type ActiveComponentType = Exclude<ComponentType, DisabledComponentType>;
+export const DISABLED_COMPONENTS: ReadonlySet<ComponentType> = new Set<ComponentType>(DISABLED_COMPONENT_LIST);
