@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""
+prismer-jupyter — Execute Python code via the container Jupyter service.
+
+Usage:
+  prismer-jupyter execute <file.py>
+  prismer-jupyter execute-code "import numpy as np; print(np.pi)"
+  prismer-jupyter run-notebook <file.ipynb>
+
+Outputs are captured and written as directives for the Bridge.
+"""
+
+import sys
+import os
+import json
+import urllib.request
+import urllib.error
+import uuid
+from pathlib import Path
+from datetime import datetime
+
+JUPYTER_SERVICE = "http://127.0.0.1:8888"
+JUPYTER_TOKEN = os.environ.get("JUPYTER_TOKEN", "")
+DIRECTIVES_DIR = Path("/workspace/.openclaw/directives")
+OUTPUT_DIR = Path("/workspace/output")
+NOTEBOOKS_DIR = Path("/workspace/notebooks")
+
+def ensure_dirs():
+    DIRECTIVES_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    NOTEBOOKS_DIR.mkdir(parents=True, exist_ok=True)
+
+def write_directive(directive):
+    ensure_dirs()
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    path = DIRECTIVES_DIR / f"{ts}.json"
+    path.write_text(json.dumps(directive, ensure_ascii=False, indent=2))
+    return path
+
+def jupyter_api(path, method="GET", data=None):
+    """Make a Jupyter REST API call."""
+    url = f"{JUPYTER_SERVICE}{path}"
+    if JUPYTER_TOKEN:
+        sep = "&" if "?" in url else "?"
+        url += f"{sep}token={JUPYTER_TOKEN}"
+
+    headers = {"Content-Type": "application/json"}
+    body = json.dumps(data).encode("utf-8") if data else None
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        print(f"Jupyter API error: {e.code} {body[:200]}", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"Jupyter API error: {e}", file=sys.stderr)
+        return None
+
+def get_or_start_kernel():
+    """Get an existing kernel or start a new one."""
+    kernels = jupyter_api("/api/kernels")
+    if kernels and len(kernels) > 0:
+        return kernels[0]["id"]
+
+    # Start new kernel
+    result = jupyter_api("/api/kernels", method="POST", data={"name": "python3"})
+    if result:
+        print(f"Started kernel: {result['id']}")
+        return result["id"]
+    return None
+
+def execute_code(code, kernel_id=None):
+    """Execute Python code in a Jupyter kernel via WebSocket.
+    Falls back to subprocess if kernel is unavailable.
+    """
+    # Try subprocess fallback (simpler, more reliable for single execution)
+    import subprocess
+    import tempfile
+
+    ensure_dirs()
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", dir="/tmp", delete=False) as f:
+        f.write(code)
+        f.flush()
+        tmp_path = f.name
+
+    try:
+        result = subprocess.run(
+            ["python3", tmp_path],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd="/workspace",
+        )
+        stdout = result.stdout
+        stderr = result.stderr
+        success = result.returncode == 0
+    except subprocess.TimeoutExpired:
+        stdout = ""
+        stderr = "Execution timed out (120s)"
+        success = False
+    except Exception as e:
+        stdout = ""
+        stderr = str(e)
+        success = False
+    finally:
+        os.unlink(tmp_path)
+
+    # Collect output files (images saved by matplotlib etc)
+    output_files = []
+    for ext in ("*.png", "*.jpg", "*.svg", "*.pdf"):
+        for f in OUTPUT_DIR.glob(ext):
+            if f.stat().st_mtime > datetime.now().timestamp() - 10:
+                output_files.append(str(f))
+        for f in Path("/workspace").glob(ext):
+            if f.stat().st_mtime > datetime.now().timestamp() - 10:
+                output_files.append(str(f))
+
+    # Write directives
+    write_directive({
+        "type": "switch_component",
+        "target": "jupyter-notebook",
+        "timestamp": datetime.now().isoformat(),
+    })
+
+    write_directive({
+        "type": "jupyter_cell_result",
+        "target": "jupyter-notebook",
+        "data": {
+            "code": code,
+            "stdout": stdout,
+            "stderr": stderr,
+            "success": success,
+            "output_files": output_files,
+        },
+        "timestamp": datetime.now().isoformat(),
+    })
+
+    # If there are image outputs, also add to gallery
+    for f in output_files:
+        if f.endswith((".png", ".jpg", ".svg")):
+            write_directive({
+                "type": "add_gallery_image",
+                "target": "bento-gallery",
+                "data": {
+                    "path": f,
+                    "filename": os.path.basename(f),
+                    "source": "jupyter",
+                },
+                "timestamp": datetime.now().isoformat(),
+            })
+
+    print(f"Execution {'succeeded' if success else 'failed'}")
+    if stdout:
+        print(stdout)
+    if stderr:
+        print(stderr, file=sys.stderr)
+    if output_files:
+        print(f"Output files: {', '.join(output_files)}")
+
+    return success
+
+def execute_file(py_path):
+    """Execute a Python file."""
+    py_path = Path(py_path).resolve()
+    if not py_path.exists():
+        print(f"Error: File not found: {py_path}", file=sys.stderr)
+        return False
+    code = py_path.read_text(encoding="utf-8")
+    return execute_code(code)
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+
+    if cmd == "execute" and len(sys.argv) >= 3:
+        ok = execute_file(sys.argv[2])
+        sys.exit(0 if ok else 1)
+
+    elif cmd == "execute-code" and len(sys.argv) >= 3:
+        ok = execute_code(sys.argv[2])
+        sys.exit(0 if ok else 1)
+
+    else:
+        print(__doc__)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

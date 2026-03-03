@@ -1,0 +1,14 @@
+{
+  "name": "prismer-workspace",
+  "version": "0.5.0",
+  "description": "OpenClaw Plugin for Prismer.AI Academic Workspace",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  },
+  "peerDependencies": {
+    "openclaw": "*"
+  }
+}

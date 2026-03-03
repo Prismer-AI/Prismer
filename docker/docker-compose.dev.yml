@@ -1,0 +1,56 @@
+# ============================================================
+# Prismer Academic + OpenClaw (v5.0) — Local Development
+# ============================================================
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# Host runs Next.js (npm run dev) on :3000
+# Container provides unified gateway on :16888 → /api/v1/{service}/*
+#
+# All container services accessible via single endpoint:
+#   http://localhost:16888/api/v1/latex/*       LaTeX compile
+#   http://localhost:16888/api/v1/prover/*      Prover (Coq/Z3)
+#   http://localhost:16888/api/v1/jupyter/*     Jupyter server
+#   http://localhost:16888/api/v1/gateway/*     OpenClaw Gateway
+#   http://localhost:16888/api/v1/arxiv/*       arXiv paper conversion
+#   http://localhost:16888/api/v1/health        Aggregated health check
+#
+
+services:
+  prismer-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.openclaw
+      args:
+        BASE_IMAGE: prismer-academic:v5.0
+    image: prismer-academic:v5.0-openclaw
+    container_name: prismer-agent
+
+    ports:
+      - "16888:3000"  # Container Gateway (fixed port for k8s alignment)
+
+    environment:
+      # Prismer IM — point to host mock-im-server
+      - PRISMER_IM_SERVER_URL=${PRISMER_IM_SERVER_URL:-http://host.docker.internal:3456}
+      - PRISMER_CONVERSATION_ID=${PRISMER_CONVERSATION_ID:-test-conversation}
+      - PRISMER_AGENT_TOKEN=${PRISMER_AGENT_TOKEN:-dev-token}
+      - PRISMER_API_BASE_URL=${PRISMER_API_BASE_URL:-http://host.docker.internal:3000}
+      - PRISMER_AGENT_ID=${PRISMER_AGENT_ID:-default}
+
+      # Model API Key
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+
+      # OpenClaw Gateway
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-prismer-dev-token}
+
+    volumes:
+      - prismer-workspace:/workspace
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    restart: unless-stopped
+
+volumes:
+  prismer-workspace:

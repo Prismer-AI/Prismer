@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""
+prismer-component — Control workspace UI components via directives.
+
+Usage:
+  prismer-component switch <component-name>
+  prismer-component update <component-name> --content <file>
+  prismer-component notify <message>
+
+Components: pdf-reader, latex-editor, jupyter-notebook, code-playground,
+            ai-editor, ag-grid, bento-gallery, three-viewer
+
+Writes directive JSON files to /workspace/.openclaw/directives/
+which the Bridge API monitors and translates to frontend actions.
+"""
+
+import sys
+import json
+from pathlib import Path
+from datetime import datetime
+
+DIRECTIVES_DIR = Path("/workspace/.openclaw/directives")
+
+VALID_COMPONENTS = [
+    "pdf-reader", "latex-editor", "jupyter-notebook", "code-playground",
+    "ai-editor", "ag-grid", "bento-gallery", "three-viewer",
+]
+
+def write_directive(directive):
+    DIRECTIVES_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    path = DIRECTIVES_DIR / f"{ts}.json"
+    path.write_text(json.dumps(directive, ensure_ascii=False, indent=2))
+    print(f"Directive written: {path.name}")
+    return path
+
+def switch_component(component):
+    if component not in VALID_COMPONENTS:
+        print(f"Error: Unknown component '{component}'", file=sys.stderr)
+        print(f"Valid: {', '.join(VALID_COMPONENTS)}", file=sys.stderr)
+        return False
+    write_directive({
+        "type": "switch_component",
+        "target": component,
+        "timestamp": datetime.now().isoformat(),
+    })
+    print(f"Switched to: {component}")
+    return True
+
+def update_content(component, content_file):
+    if component not in VALID_COMPONENTS:
+        print(f"Error: Unknown component '{component}'", file=sys.stderr)
+        return False
+    path = Path(content_file)
+    if not path.exists():
+        print(f"Error: File not found: {content_file}", file=sys.stderr)
+        return False
+    content = path.read_text(encoding="utf-8")
+    write_directive({
+        "type": "update_content",
+        "target": component,
+        "data": {
+            "content": content,
+            "filename": path.name,
+            "filepath": str(path.resolve()),
+        },
+        "timestamp": datetime.now().isoformat(),
+    })
+    print(f"Updated {component} with {path.name} ({len(content)} chars)")
+    return True
+
+def notify(message):
+    write_directive({
+        "type": "notification",
+        "data": {"message": message},
+        "timestamp": datetime.now().isoformat(),
+    })
+    print(f"Notification sent: {message}")
+    return True
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+
+    if cmd == "switch" and len(sys.argv) >= 3:
+        ok = switch_component(sys.argv[2])
+        sys.exit(0 if ok else 1)
+
+    elif cmd == "update" and len(sys.argv) >= 3:
+        component = sys.argv[2]
+        content_file = None
+        for i, arg in enumerate(sys.argv):
+            if arg == "--content" and i + 1 < len(sys.argv):
+                content_file = sys.argv[i + 1]
+        if not content_file:
+            print("Error: --content <file> required", file=sys.stderr)
+            sys.exit(1)
+        ok = update_content(component, content_file)
+        sys.exit(0 if ok else 1)
+
+    elif cmd == "notify" and len(sys.argv) >= 3:
+        ok = notify(" ".join(sys.argv[2:]))
+        sys.exit(0 if ok else 1)
+
+    else:
+        print(__doc__)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

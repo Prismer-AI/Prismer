@@ -1,0 +1,28 @@
+# Prismer Local Mode — Lightweight single-container setup
+# Usage: docker compose -f docker/docker-compose.lite.yml up -d
+
+services:
+  prismer-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.openclaw
+      args:
+        BASE_IMAGE: prismer-academic:v5.0-lite
+    ports:
+      - "${AGENT_PORT:-16888}:3000"
+      - "${JUPYTER_PORT:-18888}:8888"
+      - "${LATEX_PORT:-18080}:8080"
+    environment:
+      - LOCAL_MODE=true
+      - STATIC_AGENT_ENABLED=true
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL:-https://api.openai.com/v1}
+      - AGENT_DEFAULT_MODEL=${AGENT_DEFAULT_MODEL:-gpt-4o}
+      - PRISMER_API_BASE_URL=http://host.docker.internal:3000
+      - PRISMER_AGENT_ID=${PRISMER_AGENT_ID:-local-agent-001}
+    volumes:
+      - prismer-workspace:/workspace
+    restart: unless-stopped
+
+volumes:
+  prismer-workspace:

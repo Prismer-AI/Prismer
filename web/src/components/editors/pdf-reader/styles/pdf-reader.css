@@ -1,0 +1,546 @@
+/* ============================================================
+   PDF Reader - 高对比度设计系统
+   ============================================================ */
+
+/* CSS Variables - 暖白背景 + 深色文字 */
+:root {
+  /* 背景色 */
+  --pdf-bg-base: #fdfcfa;
+  --pdf-bg-surface: #f7f5f2;
+  --pdf-bg-elevated: #ffffff;
+  --pdf-bg-muted: #f0eeeb;
+  --pdf-bg-hover: #e8e6e2;
+  --pdf-bg-active: #dbd8d3;
+  
+  /* 边框色 */
+  --pdf-border-light: #e0ddd8;
+  --pdf-border-default: #ccc9c3;
+  --pdf-border-strong: #a8a49d;
+  
+  /* 文字色 - 高对比度 */
+  --pdf-text-primary: #1a1817;
+  --pdf-text-secondary: #3d3a36;
+  --pdf-text-tertiary: #666360;
+  --pdf-text-muted: #8a8784;
+  --pdf-text-on-accent: #ffffff;
+  
+  /* 主题色 */
+  --pdf-accent: #4338ca;
+  --pdf-accent-hover: #3730a3;
+  --pdf-accent-light: rgba(67, 56, 202, 0.12);
+  --pdf-accent-muted: rgba(67, 56, 202, 0.08);
+  
+  /* 功能色 */
+  --pdf-success: #059669;
+  --pdf-success-light: rgba(5, 150, 105, 0.12);
+  --pdf-warning: #d97706;
+  --pdf-error: #dc2626;
+  
+  /* 图标色 */
+  --pdf-icon: #4a4744;
+  --pdf-icon-muted: #6b6865;
+  --pdf-icon-hover: #1a1817;
+}
+
+/* 应用到 PDF Reader 容器 */
+.pdf-reader-container {
+  --bg-main: var(--pdf-bg-base);
+  --bg-secondary: var(--pdf-bg-surface);
+  --bg-content: var(--pdf-bg-elevated);
+  --bg-box-nor: var(--pdf-bg-muted);
+  --bg-box-hover: var(--pdf-bg-hover);
+  --stroke-nor: var(--pdf-border-default);
+  --stroke-hover: var(--pdf-border-strong);
+  --text-1: var(--pdf-text-primary);
+  --text-2: var(--pdf-text-secondary);
+  --text-3: var(--pdf-text-tertiary);
+  --main-color: var(--pdf-accent);
+  --main-color-light: var(--pdf-accent-light);
+  
+  background-color: var(--pdf-bg-base);
+  color: var(--pdf-text-primary);
+}
+
+/* ============================================================
+   工具栏样式
+   ============================================================ */
+
+.pdf-reader-container .pdf-toolbar {
+  background: var(--pdf-bg-elevated);
+  border-bottom: 1px solid var(--pdf-border-default);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* 工具栏按钮 */
+.pdf-reader-container button {
+  color: var(--pdf-icon);
+  transition: all 0.15s ease;
+}
+
+.pdf-reader-container button:hover:not(:disabled) {
+  color: var(--pdf-icon-hover);
+  background-color: var(--pdf-bg-hover);
+}
+
+.pdf-reader-container button:disabled {
+  color: var(--pdf-text-muted);
+  opacity: 0.5;
+}
+
+/* 激活状态的按钮 */
+.pdf-reader-container button[data-state="on"],
+.pdf-reader-container button.active {
+  color: var(--pdf-accent);
+  background-color: var(--pdf-accent-light);
+}
+
+/* 图标颜色 */
+.pdf-reader-container svg {
+  color: inherit;
+}
+
+/* 确保 Lucide 图标可见 */
+.pdf-reader-container [class*="lucide"] {
+  color: var(--pdf-icon);
+}
+
+.pdf-reader-container button:hover [class*="lucide"] {
+  color: var(--pdf-icon-hover);
+}
+
+/* 深紫色背景按钮的白色图标 - 覆盖默认图标颜色 */
+.pdf-reader-container button[class*="bg-indigo-600"] svg,
+.pdf-reader-container button[class*="bg-indigo-600"] [class*="lucide"],
+.pdf-reader-container button[class*="bg-violet-600"] svg,
+.pdf-reader-container button[class*="bg-violet-600"] [class*="lucide"],
+.pdf-reader-container button.bg-indigo-600 svg,
+.pdf-reader-container button.bg-indigo-600 [class*="lucide"] {
+  color: white !important;
+}
+
+.pdf-reader-container button[class*="bg-indigo-600"]:hover svg,
+.pdf-reader-container button[class*="bg-indigo-600"]:hover [class*="lucide"],
+.pdf-reader-container button.bg-indigo-600:hover svg,
+.pdf-reader-container button.bg-indigo-600:hover [class*="lucide"] {
+  color: white !important;
+}
+
+/* 紧凑 citation 标签白色文字 - 使用专门的类名确保覆盖 */
+.pdf-reader-container .citation-tag-compact,
+.pdf-reader-container button.citation-tag-compact,
+.pdf-reader-container .unified-right-panel .citation-tag-compact,
+.pdf-reader-container .unified-right-panel button.citation-tag-compact,
+button.citation-tag-compact {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.pdf-reader-container .citation-tag-compact:hover,
+.pdf-reader-container button.citation-tag-compact:hover,
+button.citation-tag-compact:hover {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* ============================================================
+   右侧面板样式
+   ============================================================ */
+
+.pdf-reader-container .unified-right-panel,
+.pdf-reader-container [class*="right-panel"] {
+  background: var(--pdf-bg-elevated);
+  border-left: 1px solid var(--pdf-border-default);
+}
+
+/* 面板标题 */
+.pdf-reader-container .unified-right-panel h2,
+.pdf-reader-container .unified-right-panel h3 {
+  color: var(--pdf-text-primary);
+  font-weight: 600;
+}
+
+/* 面板标签页 */
+.pdf-reader-container .unified-right-panel button[role="tab"],
+.pdf-reader-container [class*="tab"] {
+  color: var(--pdf-text-secondary);
+  font-weight: 500;
+}
+
+.pdf-reader-container .unified-right-panel button[role="tab"]:hover,
+.pdf-reader-container [class*="tab"]:hover {
+  color: var(--pdf-text-primary);
+  background-color: var(--pdf-bg-hover);
+}
+
+.pdf-reader-container .unified-right-panel button[role="tab"][data-state="active"],
+.pdf-reader-container [class*="tab"].active {
+  color: var(--pdf-accent);
+  border-color: var(--pdf-accent);
+}
+
+/* 面板内容卡片 */
+.pdf-reader-container [class*="card"],
+.pdf-reader-container [class*="Card"] {
+  background: var(--pdf-bg-surface);
+  border: 1px solid var(--pdf-border-light);
+  border-radius: 8px;
+}
+
+/* 元数据文字 */
+.pdf-reader-container [class*="metadata"] span,
+.pdf-reader-container [class*="meta"] span {
+  color: var(--pdf-text-secondary);
+}
+
+/* 徽章 */
+.pdf-reader-container [class*="badge"] {
+  font-weight: 500;
+}
+
+/* ============================================================
+   左侧索引面板
+   ============================================================ */
+
+.pdf-reader-container .index-panel {
+  background: var(--pdf-bg-elevated);
+  border-right: 1px solid var(--pdf-border-default);
+}
+
+.pdf-reader-container .index-panel h3 {
+  color: var(--pdf-text-primary);
+}
+
+.pdf-reader-container .index-panel button {
+  color: var(--pdf-text-secondary);
+}
+
+.pdf-reader-container .index-panel button:hover {
+  color: var(--pdf-text-primary);
+  background-color: var(--pdf-bg-hover);
+}
+
+.pdf-reader-container .index-panel button.active {
+  color: var(--pdf-accent);
+  background-color: var(--pdf-accent-light);
+}
+
+/* ============================================================
+   PDF 内容区域
+   ============================================================ */
+
+.pdf-document-container {
+  background: var(--pdf-bg-surface);
+  padding: 24px;
+}
+
+/* PDF 页面 */
+.pdf-page {
+  background: #ffffff;
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.08),
+    0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  border: 1px solid var(--pdf-border-light);
+}
+
+.pdf-page:hover {
+  box-shadow: 
+    0 10px 15px -3px rgba(0, 0, 0, 0.08),
+    0 4px 6px -2px rgba(0, 0, 0, 0.04);
+}
+
+/* ============================================================
+   文本层样式
+   ============================================================ */
+
+.text-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  opacity: 0.2;
+  line-height: 1.0;
+  cursor: text;
+}
+
+.text-layer > span {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+/* 文本选择 - 浅灰色背景 */
+.text-layer ::selection,
+.textLayer ::selection {
+  background-color: rgba(120, 120, 120, 0.15);
+}
+
+.text-layer::-moz-selection,
+.textLayer::-moz-selection {
+  background-color: rgba(120, 120, 120, 0.15);
+}
+
+/* ============================================================
+   搜索高亮
+   ============================================================ */
+
+.search-highlight {
+  background-color: rgba(251, 191, 36, 0.5) !important;
+  color: var(--pdf-text-primary) !important;
+  border-radius: 2px;
+  padding: 1px 2px;
+}
+
+.current-search-result {
+  background-color: rgba(251, 146, 60, 0.7) !important;
+  box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.4);
+  animation: searchPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes searchPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+/* ============================================================
+   注释层
+   ============================================================ */
+
+.annotation-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.highlight-annotation {
+  background-color: rgba(251, 191, 36, 0.35);
+  border: 1px solid rgba(251, 191, 36, 0.6);
+  border-radius: 2px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.2s ease;
+}
+
+.highlight-annotation:hover {
+  background-color: rgba(251, 191, 36, 0.5);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================================
+   弹窗和对话框
+   ============================================================ */
+
+.selection-popup,
+.context-menu {
+  background: var(--pdf-bg-elevated);
+  border: 1px solid var(--pdf-border-default);
+  border-radius: 8px;
+  box-shadow: 
+    0 10px 25px -5px rgba(0, 0, 0, 0.12),
+    0 4px 6px -2px rgba(0, 0, 0, 0.06);
+}
+
+.selection-popup button,
+.context-menu button {
+  color: var(--pdf-text-secondary);
+  font-weight: 500;
+}
+
+.selection-popup button:hover,
+.context-menu button:hover {
+  color: var(--pdf-text-primary);
+  background-color: var(--pdf-bg-hover);
+}
+
+/* ============================================================
+   输入框样式
+   ============================================================ */
+
+.pdf-reader-container input[type="text"],
+.pdf-reader-container textarea {
+  background: var(--pdf-bg-surface);
+  border: 1px solid var(--pdf-border-default);
+  border-radius: 6px;
+  color: var(--pdf-text-primary);
+  padding: 8px 12px;
+}
+
+.pdf-reader-container input[type="text"]::placeholder,
+.pdf-reader-container textarea::placeholder {
+  color: var(--pdf-text-muted);
+}
+
+.pdf-reader-container input[type="text"]:focus,
+.pdf-reader-container textarea:focus {
+  outline: none;
+  border-color: var(--pdf-accent);
+  box-shadow: 0 0 0 3px var(--pdf-accent-muted);
+}
+
+/* ============================================================
+   滚动条样式 - 继承全局浅灰色半透明样式
+   ============================================================ */
+
+/* PDF Reader 使用更细的滚动条 */
+.pdf-reader-container ::-webkit-scrollbar,
+.unified-right-panel ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.pdf-reader-container ::-webkit-scrollbar-track,
+.unified-right-panel ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pdf-reader-container ::-webkit-scrollbar-thumb,
+.unified-right-panel ::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.35);
+  border-radius: 3px;
+}
+
+.pdf-reader-container ::-webkit-scrollbar-thumb:hover,
+.unified-right-panel ::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.55);
+}
+
+/* ============================================================
+   加载状态
+   ============================================================ */
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--pdf-bg-muted);
+  border-top: 3px solid var(--pdf-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   响应式设计
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .pdf-document-container {
+    padding: 12px;
+  }
+  
+  .pdf-reader-container button {
+    min-width: 36px;
+    min-height: 36px;
+  }
+}
+
+/* ============================================================
+   辅助功能
+   ============================================================ */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* 高对比度模式 */
+@media (prefers-contrast: high) {
+  .pdf-reader-container {
+    --pdf-text-primary: #000000;
+    --pdf-text-secondary: #1a1a1a;
+    --pdf-border-default: #666666;
+  }
+}
+
+/* 减少动画 */
+@media (prefers-reduced-motion: reduce) {
+  .pdf-reader-container * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   修复：确保图标和按钮文字可见
+   ============================================================ */
+
+/* Ghost 按钮 */
+.pdf-reader-container button[class*="ghost"] {
+  color: var(--pdf-icon);
+}
+
+.pdf-reader-container button[class*="ghost"]:hover {
+  color: var(--pdf-icon-hover);
+  background-color: var(--pdf-bg-hover);
+}
+
+/* 确保所有按钮内的 SVG 图标继承颜色 */
+.pdf-reader-container button svg {
+  color: inherit !important;
+}
+
+/* 工具栏图标特殊处理 */
+.pdf-reader-container [class*="toolbar"] button svg,
+.pdf-reader-container .pdf-toolbar button svg {
+  color: var(--pdf-icon) !important;
+}
+
+.pdf-reader-container [class*="toolbar"] button:hover svg,
+.pdf-reader-container .pdf-toolbar button:hover svg {
+  color: var(--pdf-icon-hover) !important;
+}
+
+/* 激活状态的工具栏按钮 */
+.pdf-reader-container [class*="toolbar"] button[data-state="on"] svg,
+.pdf-reader-container [class*="toolbar"] button.active svg,
+.pdf-reader-container .pdf-toolbar button.active svg {
+  color: var(--pdf-accent) !important;
+}
+
+/* 页码和缩放比例文字 */
+.pdf-reader-container [class*="toolbar"] span {
+  color: var(--pdf-text-secondary);
+  font-weight: 500;
+}
+
+/* 搜索框 */
+.pdf-reader-container [class*="search"] input {
+  color: var(--pdf-text-primary);
+}
+
+.pdf-reader-container [class*="search"] input::placeholder {
+  color: var(--pdf-text-muted);
+}
+
+/* 右侧面板标签页 - 强制高对比度 */
+.pdf-reader-container .unified-right-panel [class*="tab"],
+.unified-right-panel button {
+  color: var(--pdf-text-secondary) !important;
+}
+
+.pdf-reader-container .unified-right-panel [class*="tab"]:hover,
+.unified-right-panel button:hover {
+  color: var(--pdf-text-primary) !important;
+}
+
+.pdf-reader-container .unified-right-panel [class*="tab"].active,
+.pdf-reader-container .unified-right-panel [class*="tab"][data-state="active"] {
+  color: var(--pdf-accent) !important;
+}

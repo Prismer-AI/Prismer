@@ -1,0 +1,28 @@
+{
+  "$schema": "Container plugin compatibility matrix — machine-readable",
+  "baseVersion": "5.0",
+  "imageVersion": "5.0",
+  "components": {
+    "prismer-im": {
+      "version": "0.2.0",
+      "minBackendApi": "4.3",
+      "description": "IM Channel Plugin (@prismer/sdk v1.7)"
+    },
+    "prismer-workspace": {
+      "version": "0.5.0",
+      "minBackendApi": "4.3",
+      "description": "Workspace Skill Plugin (26 tools)"
+    },
+    "prismer-tools": {
+      "version": "0.1.0",
+      "minBackendApi": "4.3",
+      "description": "Python CLI Tools (4 commands)"
+    },
+    "container-gateway": {
+      "version": "1.1.0",
+      "minBackendApi": "4.3",
+      "description": "Service Gateway (zero-dep reverse proxy)"
+    }
+  },
+  "backendApiVersion": "4.3"
+}

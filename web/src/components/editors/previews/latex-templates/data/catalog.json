@@ -1,0 +1,864 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-01-18",
+  "categories": [
+    {
+      "id": "conference",
+      "name": "Conference Papers",
+      "nameZh": "会议论文",
+      "icon": "🎯",
+      "description": "Templates for academic conference submissions"
+    },
+    {
+      "id": "journal",
+      "name": "Journal Articles",
+      "nameZh": "期刊论文",
+      "icon": "📰",
+      "description": "Templates for journal paper submissions"
+    },
+    {
+      "id": "thesis",
+      "name": "Thesis & Dissertation",
+      "nameZh": "学位论文",
+      "icon": "🎓",
+      "description": "Templates for bachelor, master, and PhD theses"
+    },
+    {
+      "id": "cv",
+      "name": "CV & Resume",
+      "nameZh": "简历",
+      "icon": "📋",
+      "description": "Professional CV and resume templates"
+    },
+    {
+      "id": "presentation",
+      "name": "Presentations",
+      "nameZh": "演示文稿",
+      "icon": "📊",
+      "description": "Beamer and other presentation templates"
+    },
+    {
+      "id": "report",
+      "name": "Reports",
+      "nameZh": "报告",
+      "icon": "📝",
+      "description": "Technical reports and project documentation"
+    },
+    {
+      "id": "book",
+      "name": "Books",
+      "nameZh": "书籍",
+      "icon": "📚",
+      "description": "Book and textbook templates"
+    },
+    {
+      "id": "letter",
+      "name": "Letters",
+      "nameZh": "信件",
+      "icon": "✉️",
+      "description": "Formal and cover letter templates"
+    },
+    {
+      "id": "poster",
+      "name": "Posters",
+      "nameZh": "海报",
+      "icon": "🖼️",
+      "description": "Academic and conference poster templates"
+    }
+  ],
+  "templates": [
+    {
+      "id": "cvpr-2026",
+      "name": "CVPR 2026",
+      "description": "IEEE/CVF Conference on Computer Vision and Pattern Recognition 2026 submission template. The premier annual computer vision event.",
+      "category": "conference",
+      "tags": ["computer-vision", "cvpr", "ieee", "cvf", "2026", "vision"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "cvpr-org",
+          "repo": "author-kit",
+          "branch": "main",
+          "mainFile": "main.tex"
+        }
+      },
+      "author": "CVPR Organization",
+      "license": "CC BY 4.0",
+      "documentClass": "article",
+      "stars": 690,
+      "lastUpdated": "2025-09-17"
+    },
+    {
+      "id": "neurips-2025",
+      "name": "NeurIPS 2025",
+      "description": "Neural Information Processing Systems conference template. Top venue for machine learning and computational neuroscience.",
+      "category": "conference",
+      "tags": ["machine-learning", "neurips", "ai", "deep-learning", "2025"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "neurips",
+          "repo": "neurips_2025",
+          "branch": "main",
+          "mainFile": "neurips_2025.tex"
+        }
+      },
+      "author": "NeurIPS Foundation",
+      "license": "CC BY 4.0",
+      "documentClass": "article",
+      "stars": 450
+    },
+    {
+      "id": "icml-2025",
+      "name": "ICML 2025",
+      "description": "International Conference on Machine Learning template. Premier gathering of professionals dedicated to machine learning.",
+      "category": "conference",
+      "tags": ["machine-learning", "icml", "pmlr", "2025"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "icml-conf",
+          "repo": "icml2025-template",
+          "branch": "main",
+          "mainFile": "icml2025.tex"
+        }
+      },
+      "author": "ICML",
+      "license": "MIT",
+      "documentClass": "article"
+    },
+    {
+      "id": "iclr-2025",
+      "name": "ICLR 2025",
+      "description": "International Conference on Learning Representations template. Dedicated to research on all aspects of representation learning.",
+      "category": "conference",
+      "tags": ["deep-learning", "iclr", "representation-learning", "2025"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "ICLR",
+          "repo": "iclr2025-template",
+          "branch": "main",
+          "mainFile": "iclr2025_conference.tex"
+        }
+      },
+      "author": "ICLR",
+      "license": "CC BY 4.0",
+      "documentClass": "article"
+    },
+    {
+      "id": "acl-2025",
+      "name": "ACL 2025",
+      "description": "Association for Computational Linguistics template. The premier conference of the field of computational linguistics.",
+      "category": "conference",
+      "tags": ["nlp", "acl", "linguistics", "natural-language-processing", "2025"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "acl-org",
+          "repo": "acl-style-files",
+          "branch": "master",
+          "mainFile": "acl_latex.tex"
+        }
+      },
+      "author": "ACL",
+      "license": "CC BY 4.0",
+      "documentClass": "article",
+      "stars": 320
+    },
+    {
+      "id": "emnlp-2025",
+      "name": "EMNLP 2025",
+      "description": "Empirical Methods in Natural Language Processing template. Uses ACL style files.",
+      "category": "conference",
+      "tags": ["nlp", "emnlp", "linguistics", "2025"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "acl-org",
+          "repo": "acl-style-files",
+          "branch": "master",
+          "mainFile": "acl_latex.tex"
+        }
+      },
+      "author": "ACL",
+      "license": "CC BY 4.0",
+      "documentClass": "article"
+    },
+    {
+      "id": "aaai-2025",
+      "name": "AAAI 2025",
+      "description": "Association for the Advancement of Artificial Intelligence conference template.",
+      "category": "conference",
+      "tags": ["ai", "aaai", "artificial-intelligence", "2025"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "AAAI",
+          "repo": "aaai-template",
+          "branch": "main",
+          "mainFile": "aaai25.tex"
+        }
+      },
+      "author": "AAAI",
+      "license": "CC BY 4.0",
+      "documentClass": "article"
+    },
+    {
+      "id": "eccv-2024",
+      "name": "ECCV 2024",
+      "description": "European Conference on Computer Vision template. Biennial research conference.",
+      "category": "conference",
+      "tags": ["computer-vision", "eccv", "europe", "2024"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "cvpr-org",
+          "repo": "author-kit",
+          "branch": "main",
+          "mainFile": "main.tex"
+        }
+      },
+      "author": "ECCV",
+      "license": "CC BY 4.0",
+      "documentClass": "article"
+    },
+    {
+      "id": "siggraph-2025",
+      "name": "SIGGRAPH 2025",
+      "description": "ACM SIGGRAPH conference template for computer graphics and interactive techniques.",
+      "category": "conference",
+      "tags": ["graphics", "siggraph", "acm", "visualization", "2025"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "siggraph",
+          "repo": "siggraph-template",
+          "branch": "main",
+          "mainFile": "template.tex"
+        }
+      },
+      "author": "ACM SIGGRAPH",
+      "license": "ACM",
+      "documentClass": "acmart"
+    },
+    {
+      "id": "chi-2025",
+      "name": "CHI 2025",
+      "description": "ACM CHI Conference on Human Factors in Computing Systems template.",
+      "category": "conference",
+      "tags": ["hci", "chi", "acm", "human-computer-interaction", "2025"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "sigchi",
+          "repo": "chi-template",
+          "branch": "main",
+          "mainFile": "sample-sigchi.tex"
+        }
+      },
+      "author": "ACM SIGCHI",
+      "license": "ACM",
+      "documentClass": "acmart"
+    },
+    {
+      "id": "ieee-transactions",
+      "name": "IEEE Transactions",
+      "description": "IEEE Transactions journal template. Standard format for IEEE publications including TPAMI, TIP, TNNLS, etc.",
+      "category": "journal",
+      "tags": ["ieee", "journal", "transactions", "tpami", "tip"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "latextemplates",
+          "repo": "IEEE",
+          "branch": "main",
+          "mainFile": "bare_jrnl.tex"
+        }
+      },
+      "author": "IEEE",
+      "license": "IEEE",
+      "documentClass": "IEEEtran",
+      "stars": 890
+    },
+    {
+      "id": "ieee-conference",
+      "name": "IEEE Conference",
+      "description": "IEEE Conference paper template. Standard format for IEEE conference proceedings.",
+      "category": "conference",
+      "tags": ["ieee", "conference"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "latextemplates",
+          "repo": "IEEE",
+          "branch": "main",
+          "mainFile": "bare_conf.tex"
+        }
+      },
+      "author": "IEEE",
+      "license": "IEEE",
+      "documentClass": "IEEEtran"
+    },
+    {
+      "id": "acm-article",
+      "name": "ACM Article",
+      "description": "ACM Primary Article Template (acmart). For journals like CACM, JACM, TOCS, etc.",
+      "category": "journal",
+      "tags": ["acm", "journal", "computing"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "borisveytsman",
+          "repo": "acmart",
+          "branch": "master",
+          "mainFile": "sample-acmsmall.tex"
+        }
+      },
+      "author": "ACM",
+      "license": "LPPL",
+      "documentClass": "acmart"
+    },
+    {
+      "id": "springer-lncs",
+      "name": "Springer LNCS",
+      "description": "Springer Lecture Notes in Computer Science template. Used for many CS conferences.",
+      "category": "conference",
+      "tags": ["springer", "lncs", "computer-science"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "latextemplates",
+          "repo": "LNCS",
+          "branch": "main",
+          "mainFile": "paper.tex"
+        }
+      },
+      "author": "Springer",
+      "license": "Springer",
+      "documentClass": "llncs"
+    },
+    {
+      "id": "elsevier-article",
+      "name": "Elsevier Article",
+      "description": "Elsevier journal article template. For journals like Pattern Recognition, Neural Networks, etc.",
+      "category": "journal",
+      "tags": ["elsevier", "journal"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "latextemplates",
+          "repo": "elsevier",
+          "branch": "main",
+          "mainFile": "template.tex"
+        }
+      },
+      "author": "Elsevier",
+      "license": "Elsevier",
+      "documentClass": "elsarticle"
+    },
+    {
+      "id": "nature-article",
+      "name": "Nature Article",
+      "description": "Nature journal submission template. For Nature and Nature-branded journals.",
+      "category": "journal",
+      "tags": ["nature", "journal", "science"],
+      "source": {
+        "type": "overleaf",
+        "overleaf": {
+          "templateId": "nature-template",
+          "templateSlug": "nature-submission-template",
+          "webUrl": "https://www.overleaf.com/latex/templates/nature-submission-template"
+        }
+      },
+      "author": "Nature",
+      "license": "Nature",
+      "documentClass": "article"
+    },
+    {
+      "id": "arxiv-preprint",
+      "name": "arXiv Preprint",
+      "description": "Clean and simple template for arXiv preprint submissions.",
+      "category": "journal",
+      "tags": ["arxiv", "preprint", "open-access"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "kourgeorge",
+          "repo": "arxiv-style",
+          "branch": "master",
+          "mainFile": "template.tex"
+        }
+      },
+      "author": "Community",
+      "license": "MIT",
+      "documentClass": "article"
+    },
+    {
+      "id": "jmlr-article",
+      "name": "JMLR Article",
+      "description": "Journal of Machine Learning Research template.",
+      "category": "journal",
+      "tags": ["jmlr", "machine-learning", "journal"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "JmlrOrg",
+          "repo": "jmlr-style-file",
+          "branch": "master",
+          "mainFile": "sample.tex"
+        }
+      },
+      "author": "JMLR",
+      "license": "MIT",
+      "documentClass": "jmlr"
+    },
+    {
+      "id": "modern-cv",
+      "name": "Modern CV",
+      "description": "A modern curriculum vitae template with clean design and easy customization.",
+      "category": "cv",
+      "tags": ["cv", "resume", "modern", "job"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "xdanaux",
+          "repo": "moderncv",
+          "branch": "master",
+          "mainFile": "template.tex"
+        }
+      },
+      "author": "Xavier Danaux",
+      "license": "LPPL",
+      "documentClass": "moderncv",
+      "stars": 1200
+    },
+    {
+      "id": "awesome-cv",
+      "name": "Awesome CV",
+      "description": "LaTeX template for a CV, resume, cover letter & portfolio inspired by Fancy CV.",
+      "category": "cv",
+      "tags": ["cv", "resume", "awesome", "modern"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "posquit0",
+          "repo": "Awesome-CV",
+          "branch": "master",
+          "mainFile": "examples/resume.tex"
+        }
+      },
+      "author": "posquit0",
+      "license": "CC BY-SA 4.0",
+      "documentClass": "awesome-cv",
+      "stars": 22000
+    },
+    {
+      "id": "deedy-resume",
+      "name": "Deedy Resume",
+      "description": "One page two column resume template. Clean and professional.",
+      "category": "cv",
+      "tags": ["cv", "resume", "one-page", "two-column"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "deedy",
+          "repo": "Deedy-Resume",
+          "branch": "master",
+          "mainFile": "deedy_resume-openfont.tex"
+        }
+      },
+      "author": "Deedy",
+      "license": "Apache 2.0",
+      "documentClass": "article",
+      "stars": 5000
+    },
+    {
+      "id": "beamer-metropolis",
+      "name": "Beamer Metropolis",
+      "description": "A modern Beamer theme with minimal visual noise. Perfect for academic presentations.",
+      "category": "presentation",
+      "tags": ["beamer", "presentation", "slides", "modern"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "matze",
+          "repo": "mtheme",
+          "branch": "master",
+          "mainFile": "demo/demo.tex"
+        }
+      },
+      "author": "Matthias Vogelgesang",
+      "license": "CC BY-SA 4.0",
+      "documentClass": "beamer",
+      "stars": 1500
+    },
+    {
+      "id": "beamer-focus",
+      "name": "Beamer Focus",
+      "description": "A minimalist Beamer theme that emphasizes content over decoration.",
+      "category": "presentation",
+      "tags": ["beamer", "presentation", "minimal", "focus"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "elauksap",
+          "repo": "focus-beamertheme",
+          "branch": "main",
+          "mainFile": "demo.tex"
+        }
+      },
+      "author": "Pasquale Claudio Africa",
+      "license": "GPL-3.0",
+      "documentClass": "beamer"
+    },
+    {
+      "id": "thesis-template",
+      "name": "Clean Thesis",
+      "description": "A clean, simple, and elegant LaTeX template for academic theses.",
+      "category": "thesis",
+      "tags": ["thesis", "phd", "master", "dissertation"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "derric",
+          "repo": "cleanthesis",
+          "branch": "master",
+          "mainFile": "my-thesis.tex"
+        }
+      },
+      "author": "Ricardo Langner",
+      "license": "LPPL",
+      "documentClass": "scrbook",
+      "stars": 800
+    },
+    {
+      "id": "mit-thesis",
+      "name": "MIT Thesis",
+      "description": "MIT thesis template for master's and doctoral theses.",
+      "category": "thesis",
+      "tags": ["thesis", "mit", "phd", "master"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "mit-pdos",
+          "repo": "mit-thesis-template",
+          "branch": "main",
+          "mainFile": "main.tex"
+        }
+      },
+      "author": "MIT",
+      "license": "MIT",
+      "documentClass": "mitthesis"
+    },
+    {
+      "id": "stanford-thesis",
+      "name": "Stanford Thesis",
+      "description": "Stanford University PhD thesis template following official formatting guidelines.",
+      "category": "thesis",
+      "tags": ["thesis", "stanford", "phd", "dissertation"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "suchow",
+          "repo": "suthesis",
+          "branch": "master",
+          "mainFile": "thesis.tex"
+        }
+      },
+      "author": "Stanford",
+      "license": "MIT",
+      "documentClass": "suthesis"
+    },
+    {
+      "id": "oxford-thesis",
+      "name": "Oxford Thesis",
+      "description": "University of Oxford thesis template for DPhil students.",
+      "category": "thesis",
+      "tags": ["thesis", "oxford", "phd", "uk"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "mcmanigle",
+          "repo": "OxThesis",
+          "branch": "master",
+          "mainFile": "Oxford_Thesis.tex"
+        }
+      },
+      "author": "Oxford",
+      "license": "MIT",
+      "documentClass": "ociamthesis",
+      "stars": 400
+    },
+    {
+      "id": "tufte-book",
+      "name": "Tufte Book",
+      "description": "Beautiful book design inspired by Edward Tufte's books. Features wide margins for notes.",
+      "category": "book",
+      "tags": ["book", "tufte", "elegant", "margin-notes"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "Tufte-LaTeX",
+          "repo": "tufte-latex",
+          "branch": "master",
+          "mainFile": "sample-book.tex"
+        }
+      },
+      "author": "Tufte-LaTeX Team",
+      "license": "Apache 2.0",
+      "documentClass": "tufte-book",
+      "stars": 1600
+    },
+    {
+      "id": "koma-book",
+      "name": "KOMA-Script Book",
+      "description": "Professional book template using KOMA-Script classes with European typography.",
+      "category": "book",
+      "tags": ["book", "koma-script", "professional", "european"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "latextemplates",
+          "repo": "book-template",
+          "branch": "main",
+          "mainFile": "main.tex"
+        }
+      },
+      "author": "KOMA-Script",
+      "license": "LPPL",
+      "documentClass": "scrbook"
+    },
+    {
+      "id": "technical-report",
+      "name": "Technical Report",
+      "description": "Clean template for technical reports and documentation.",
+      "category": "report",
+      "tags": ["report", "technical", "documentation"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "latextemplates",
+          "repo": "technical-report",
+          "branch": "main",
+          "mainFile": "report.tex"
+        }
+      },
+      "author": "Community",
+      "license": "MIT",
+      "documentClass": "report"
+    },
+    {
+      "id": "lab-report",
+      "name": "Lab Report",
+      "description": "Template for scientific laboratory reports with sections for methods, results, and analysis.",
+      "category": "report",
+      "tags": ["report", "lab", "science", "experiment"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "jdavis",
+          "repo": "latex-homework-template",
+          "branch": "master",
+          "mainFile": "homework.tex"
+        }
+      },
+      "author": "Josh Davis",
+      "license": "MIT",
+      "documentClass": "article",
+      "stars": 800
+    },
+    {
+      "id": "project-report",
+      "name": "Project Report",
+      "description": "Comprehensive project report template with title page, table of contents, and appendices.",
+      "category": "report",
+      "tags": ["report", "project", "documentation"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "latextemplates",
+          "repo": "project-report",
+          "branch": "main",
+          "mainFile": "main.tex"
+        }
+      },
+      "author": "Community",
+      "license": "MIT",
+      "documentClass": "report"
+    },
+    {
+      "id": "cover-letter",
+      "name": "Cover Letter",
+      "description": "Professional cover letter template matching the Modern CV style.",
+      "category": "letter",
+      "tags": ["letter", "cover-letter", "job", "professional"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "xdanaux",
+          "repo": "moderncv",
+          "branch": "master",
+          "mainFile": "template.tex"
+        }
+      },
+      "author": "Xavier Danaux",
+      "license": "LPPL",
+      "documentClass": "moderncv"
+    },
+    {
+      "id": "formal-letter",
+      "name": "Formal Letter",
+      "description": "Classic formal business letter template with proper formatting.",
+      "category": "letter",
+      "tags": ["letter", "formal", "business"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "latextemplates",
+          "repo": "formal-letter",
+          "branch": "main",
+          "mainFile": "letter.tex"
+        }
+      },
+      "author": "Community",
+      "license": "MIT",
+      "documentClass": "letter"
+    },
+    {
+      "id": "academic-poster-a0",
+      "name": "Academic Poster A0",
+      "description": "Large format A0 academic poster template for conferences.",
+      "category": "poster",
+      "tags": ["poster", "a0", "conference", "academic"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "deselaers",
+          "repo": "latex-beamerposter",
+          "branch": "master",
+          "mainFile": "example.tex"
+        }
+      },
+      "author": "Thomas Deselaers",
+      "license": "GPL",
+      "documentClass": "beamer",
+      "stars": 500
+    },
+    {
+      "id": "tikzposter",
+      "name": "TikZ Poster",
+      "description": "Highly customizable poster template using TikZ for beautiful graphics.",
+      "category": "poster",
+      "tags": ["poster", "tikz", "customizable"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "latextemplates",
+          "repo": "tikzposter-template",
+          "branch": "main",
+          "mainFile": "poster.tex"
+        }
+      },
+      "author": "Community",
+      "license": "MIT",
+      "documentClass": "tikzposter"
+    },
+    {
+      "id": "beamer-poster-simple",
+      "name": "Simple Beamer Poster",
+      "description": "Simple and clean conference poster using Beamer.",
+      "category": "poster",
+      "tags": ["poster", "beamer", "simple", "clean"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "latextemplates",
+          "repo": "beamer-poster",
+          "branch": "main",
+          "mainFile": "poster.tex"
+        }
+      },
+      "author": "Community",
+      "license": "MIT",
+      "documentClass": "beamer"
+    },
+    {
+      "id": "europass-cv",
+      "name": "Europass CV",
+      "description": "Official Europass CV format widely used in Europe.",
+      "category": "cv",
+      "tags": ["cv", "europass", "europe", "official"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "leinardi",
+          "repo": "europecv2013",
+          "branch": "master",
+          "mainFile": "examples/cv_template_en.tex"
+        }
+      },
+      "author": "Roberto Leinardi",
+      "license": "LPPL",
+      "documentClass": "europecv"
+    },
+    {
+      "id": "academic-cv",
+      "name": "Academic CV",
+      "description": "Comprehensive academic CV template with sections for publications, grants, and teaching.",
+      "category": "cv",
+      "tags": ["cv", "academic", "publications", "professor"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "darwiin",
+          "repo": "yaac-another-awesome-cv",
+          "branch": "master",
+          "mainFile": "cv.tex"
+        }
+      },
+      "author": "Christophe Roger",
+      "license": "MIT",
+      "documentClass": "yaac-another-awesome-cv",
+      "stars": 600
+    },
+    {
+      "id": "beamer-madrid",
+      "name": "Beamer Madrid",
+      "description": "Classic Beamer presentation with the popular Madrid theme.",
+      "category": "presentation",
+      "tags": ["beamer", "presentation", "madrid", "classic"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "josephwright",
+          "repo": "beamer",
+          "branch": "main",
+          "mainFile": "doc/beamerug-tutorial.tex"
+        }
+      },
+      "author": "Beamer Team",
+      "license": "LPPL",
+      "documentClass": "beamer"
+    },
+    {
+      "id": "beamer-corporate",
+      "name": "Corporate Presentation",
+      "description": "Professional corporate-style Beamer presentation template.",
+      "category": "presentation",
+      "tags": ["beamer", "presentation", "corporate", "business"],
+      "source": {
+        "type": "github",
+        "github": {
+          "owner": "latextemplates",
+          "repo": "beamer-corporate",
+          "branch": "main",
+          "mainFile": "presentation.tex"
+        }
+      },
+      "author": "Community",
+      "license": "MIT",
+      "documentClass": "beamer"
+    }
+  ]
+}

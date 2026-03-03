@@ -1,0 +1,45 @@
+# ============================================================================
+# Core Dependencies (must have)
+# ============================================================================
+
+# Core Scientific Computing
+numpy>=1.26
+scipy>=1.12
+pandas>=2.2
+sympy>=1.12
+statsmodels>=0.14
+
+# Visualization
+matplotlib>=3.8
+seaborn>=0.13
+plotly>=5.18
+kaleido>=0.2
+
+# File Handling - Documents
+pymupdf>=1.23
+pdfplumber>=0.10
+python-docx>=1.1
+python-pptx>=0.6
+markdown>=3.5
+beautifulsoup4>=4.12
+lxml>=5.1
+
+# File Handling - Data
+openpyxl>=3.1
+xlsxwriter>=3.1
+pyarrow>=15
+h5py>=3.10
+
+# Web & API
+requests>=2.31
+httpx>=0.26
+aiohttp>=3.9
+
+# Utilities
+pyyaml>=6.0
+toml>=0.10
+python-dotenv>=1.0
+tqdm>=4.66
+rich>=13.7
+typer>=0.9
+watchdog>=4.0

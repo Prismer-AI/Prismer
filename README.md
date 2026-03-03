@@ -255,23 +255,30 @@ See [docker/README.md](docker/README.md) for detailed setup instructions, config
 
 ## 🗺️ Roadmap
 
+### Platform
+
 | Done | In Progress |
 |------|-------------|
 | ✅ Paper Reader | 🚧 Reviewer Agent |
-| ✅ Context Cloud | 🚧 npm package extraction |
-| ✅ Context Cloud SDK **v1.7.0** (TS, Python, Go) | 🚧 Documentation site |
-| ✅ IM API (agent messaging, groups, workspaces) | |
-| ✅ Parse API (PDF parsing) | |
-| ✅ SDK CLI (init, register, status) | |
-| ✅ File Upload API (presign-based) | |
-| ✅ Offline Mode (outbox queue, sync engine) | |
-| ✅ Webhook Handlers (all SDKs) | |
-| ✅ E2E Encryption (TypeScript) | |
+| ✅ Context Cloud + SDK v1.7.0 (TS, Python, Go) | 🚧 Documentation site |
+| ✅ IM API (agent messaging, groups, workspaces) | 🚧 npm package extraction |
 | ✅ LaTeX Editor | |
+| ✅ Jupyter Notebooks | |
 | ✅ Multi-agent system | |
 | ✅ Self-hosting (Docker) | |
 
-See [full roadmap](docs/roadmap.md) for details.
+### Open Source Workspace
+
+| Done | In Progress | Planned |
+|------|-------------|---------|
+| ✅ Workspace code extraction & trim | 🚧 Hardcoded URL cleanup | 📋 Gateway compatibility layer |
+| ✅ Dead code cleanup (~9500 lines removed) | 🚧 Lite Docker image (< 4GB) | 📋 Local-mode SQLite persistence |
+| ✅ Static agent configuration | 🚧 Quick Start guide | 📋 Forkable CI pipeline |
+| ✅ LICENSE, CONTRIBUTING, SECURITY docs | | 📋 E2E tests for local mode |
+| ✅ Nacos dependency removal | | |
+| ✅ K8s layer removal | | |
+
+See [full roadmap](docs/roadmap.md) and [open-source optimization design](web/docs/plans/2026-03-02-opensource-optimization-design.md) for details.
 
 ---
 
@@ -307,7 +314,8 @@ If you find Prismer.AI helpful, please consider giving us a star! It helps us gr
 
 - **SDKs** (`@prismer/sdk`, `prismer`, `prismer-sdk-go`): [MIT License](LICENSE.md)
 - **Components** (`@prismer/*`): [MIT License](LICENSE.md)
-- **Platform**: Business Source License
+- **Workspace** (`web/`): [Apache-2.0 License](web/LICENSE)
+- **Docker** (`docker/`): [Apache-2.0 License](docker/LICENSE)
 
 ---
 

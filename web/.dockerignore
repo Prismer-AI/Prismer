@@ -1,0 +1,72 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js build output
+.next
+out
+
+# Testing
+coverage
+.nyc_output
+
+# Misc
+.DS_Store
+*.pem
+.idea
+.vscode
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# CI/CD
+.gitlab-ci.yml
+.github
+
+# Documentation
+*.md
+docs/
+
+# Prisma development database
+prisma/dev.db
+prisma/dev.db-journal
+
+# Generated Prisma client (will be regenerated during build)
+src/generated/prisma
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__
+tests/
+e2e/
+vitest.config.ts
+playwright.config.ts

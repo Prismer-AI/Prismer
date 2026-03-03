@@ -1,0 +1,62 @@
+# ============================================================
+# Prismer Academic + OpenClaw (v5.0)
+# ============================================================
+#
+# 构建:
+#   docker compose -f docker-compose.openclaw.yml build
+#
+# 运行:
+#   docker compose -f docker-compose.openclaw.yml up
+#
+# All services via unified gateway on :16888:
+#   http://localhost:16888/api/v1/latex/*       LaTeX compile
+#   http://localhost:16888/api/v1/prover/*      Prover (Coq/Z3)
+#   http://localhost:16888/api/v1/jupyter/*     Jupyter server
+#   http://localhost:16888/api/v1/gateway/*     OpenClaw Gateway
+#   http://localhost:16888/api/v1/arxiv/*       arXiv paper conversion
+#   http://localhost:16888/api/v1/health        Aggregated health check
+#
+
+services:
+  prismer-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.openclaw
+      args:
+        BASE_IMAGE: prismer-academic:v5.0
+    image: prismer-academic:v5.0-openclaw
+    container_name: prismer-agent
+
+    env_file:
+      - ../.env
+
+    ports:
+      - "16888:3000"  # Unified Container Gateway (fixed port for k8s alignment)
+
+    environment:
+      # Prismer IM 配置
+      PRISMER_IM_SERVER_URL: ${PRISMER_IM_SERVER_URL:-http://host.docker.internal:3456}
+      PRISMER_CONVERSATION_ID: ${PRISMER_CONVERSATION_ID:-test-conversation}
+      PRISMER_AGENT_TOKEN: ${PRISMER_AGENT_TOKEN:-dev-token}
+      PRISMER_API_BASE_URL: ${PRISMER_API_BASE_URL:-http://host.docker.internal:3000}
+      PRISMER_AGENT_ID: ${PRISMER_AGENT_ID:-default}
+
+      # Model API Key
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required in .env}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-http://34.60.178.0:3000/v1}
+      AGENT_DEFAULT_MODEL: ${AGENT_DEFAULT_MODEL:-us-kimi-k2.5}
+
+      # OpenClaw Gateway Token
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-prismer-dev-token}
+
+    volumes:
+      - prismer-workspace:/workspace
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    restart: unless-stopped
+
+volumes:
+  prismer-workspace:
