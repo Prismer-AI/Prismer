@@ -10,7 +10,6 @@
 
 <p align="center">
   <a href="https://paper.prismer.ai/library">Lecture de Papers</a> ·
-  <a href="https://prismer.cloud/">Context Cloud</a> ·
   <a href="https://docs.prismer.ai">Documentation</a> ·
   <a href="../roadmap.md">Feuille de Route</a>
 </p>
@@ -37,19 +36,12 @@
 
 <table>
 <tr>
-<td align="center" width="50%">
+<td align="center">
 <a href="https://paper.prismer.ai/library">
 <img src="https://img.shields.io/badge/📖_Lecture_Papers-Essayer-blue?style=for-the-badge&labelColor=black" alt="Paper Reading">
 </a>
 <br/>
 <sub>Lecteur PDF natif IA avec graphes de citations</sub>
-</td>
-<td align="center" width="50%">
-<a href="https://prismer.cloud/">
-<img src="https://img.shields.io/badge/☁️_Context_Cloud-Essayer-purple?style=for-the-badge&labelColor=black" alt="Context Cloud">
-</a>
-<br/>
-<sub>Gestion de contexte cloud avec SDK</sub>
 </td>
 </tr>
 </table>
@@ -65,7 +57,6 @@ Contrairement aux outils qui ne gèrent que l'écriture (Overleaf) ou la prise d
 | Fonctionnalité | Description |
 |----------------|-------------|
 | 📖 **Lecture de Papers** | Lecteur PDF natif IA avec graphes de citations |
-| ☁️ **Context Cloud** | Gestion des connaissances cloud avec SDK |
 | 📊 **Analyse de Données** | Notebooks Jupyter avec exécution Python/R |
 | ✍️ **Rédaction de Papers** | Éditeur LaTeX avec aperçu en temps réel |
 | 🔍 **Vérification des Citations** | Vérification automatique des références dans les bases académiques |
@@ -78,7 +69,6 @@ Contrairement aux outils qui ne gèrent que l'écriture (Overleaf) ou la prise d
 | Fonctionnalité | Prismer.AI | OpenAI Prism | Overleaf | Google Scholar |
 |----------------|:----------:|:------------:|:--------:|:--------------:|
 | Lecture de Papers | ✅ | ❌ | ❌ | ✅ |
-| Context Cloud | ✅ | ❌ | ❌ | ❌ |
 | Rédaction LaTeX | ✅ | ✅ | ✅ | ❌ |
 | Analyse de Données | ✅ | ❌ | ❌ | ❌ |
 | Exécution de Code | ✅ | ❌ | ❌ | ❌ |
@@ -99,23 +89,6 @@ Lecteur PDF natif IA pour les articles de recherche :
 - Chat IA avec contexte du paper
 - Extraction de figures/tableaux
 - Intégration de données OCR
-
-### ☁️ Context Cloud
-
-Gestion de contexte cloud avec support SDK complet :
-
-```typescript
-import { ContextCloudClient } from '@prismer/context-cloud-sdk';
-
-const client = new ContextCloudClient({ apiKey: 'your-api-key' });
-
-// Créer un contexte et interroger
-const context = await client.contexts.create({ name: 'Projet de Recherche' });
-const response = await client.query({
-  contextId: context.id,
-  question: 'Quelles sont les principales découvertes ?'
-});
-```
 
 ### ✍️ Éditeur LaTeX
 
@@ -138,7 +111,6 @@ Tous les composants principaux sont sous licence MIT et peuvent être utilisés 
 | Package | Description |
 |---------|-------------|
 | `@prismer/paper-reader` | Lecteur PDF avec chat IA |
-| `@prismer/context-cloud-sdk` | SDK TypeScript Context Cloud |
 | `@prismer/latex-editor` | Éditeur LaTeX avec aperçu en direct |
 | `@prismer/academic-tools` | APIs arXiv, Semantic Scholar |
 | `@prismer/jupyter-kernel` | Notebooks natifs navigateur |
@@ -165,10 +137,9 @@ docker run -d -p 3000:3000 prismer/prismer
 | Terminé | En Cours |
 |---------|----------|
 | ✅ Lecteur de Papers | 🚧 Reviewer Agent |
-| ✅ Context Cloud | 🚧 Extraction packages npm |
-| ✅ SDK Context Cloud | 🚧 Site de documentation |
-| ✅ Éditeur LaTeX | 🚧 Guide d'auto-hébergement |
-| ✅ Système multi-agent | |
+| ✅ Éditeur LaTeX | 🚧 Extraction packages npm |
+| ✅ Système multi-agent | 🚧 Site de documentation |
+| | 🚧 Guide d'auto-hébergement |
 
 Voir la [feuille de route complète](../roadmap.md) pour les détails.
 

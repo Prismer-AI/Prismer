@@ -85,7 +85,7 @@ interface SkillInstallResult {
 const WORKSPACE_SKILLS_DIR = '/workspace/skills';
 const BUILTIN_SKILLS_DIR = '/home/user/.openclaw/workspace/skills';
 const SKILL_REGISTRY_URL =
-  process.env.PRISMER_SKILL_REGISTRY_URL || 'https://prismer.cloud/api/skills';
+  process.env.PRISMER_SKILL_REGISTRY_URL || '';
 
 // Built-in skills that are always available
 const BUILTIN_SKILLS: SkillManifest[] = [

@@ -86,7 +86,6 @@ npm run dev                # http://localhost:3000
 | `UPSTASH_REDIS_REST_URL` | — | Redis (optional caching) |
 | `UPSTASH_REDIS_REST_TOKEN` | — | Redis auth token |
 | `REMOTE_MYSQL_HOST` | — | Remote paper DB (if `USE_REMOTE_PAPERS=true`) |
-| `ENABLE_NACOS` | `false` | Nacos config center (disabled by default) |
 | `PARSER_API_URL` | `https://parser.prismer.dev` | PDF parser / OCR service |
 
 ### Client-Side (NEXT_PUBLIC_*)

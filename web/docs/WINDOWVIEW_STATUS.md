@@ -181,12 +181,12 @@ useComponentStore('ai-editor').content
 
 **AI Backend Path:**
 ```
-AiEditor → /api/ai/chat (SSE proxy) → OpenAI-compatible API (Nacos config)
+AiEditor → /api/ai/chat (SSE proxy) → OpenAI-compatible API (env config)
 ```
 
 ### Container Integration: NONE
 
-The AI features route through `/api/ai/chat` (HTTP-only, line 162), which proxies to an external LLM (Kimi/GPT via Nacos). This is completely **separate from the OpenClaw container's LLM gateway**.
+The AI features route through `/api/ai/chat` (HTTP-only, line 162), which proxies to an external LLM (via env config). This is completely **separate from the OpenClaw container's LLM gateway**.
 
 The container has its own LLM provider configured in `openclaw.json`, but Notes doesn't use it.
 

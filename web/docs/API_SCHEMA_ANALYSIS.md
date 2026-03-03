@@ -234,8 +234,8 @@ export const findSkillsSkill: Skill = {
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Skill Registry                              │
 ├─────────────────────────────────────────────────────────────────┤
-│  Local Registry          │  Cloud Registry                      │
-│  (WorkspaceFile)         │  (Prismer Cloud API)                 │
+│  Local Registry          │  Remote Registry                     │
+│  (WorkspaceFile)         │  (API Server)                        │
 │                          │                                       │
 │  /workspace/skills/      │  GET /api/skills?q=...               │
 │    ├── latex-cite/       │  GET /api/skills/:id                 │
@@ -535,35 +535,6 @@ src/app/workspace/components/WorkspaceChat/ChatHeader.tsx  # Add skills button
 
 ---
 
-## Appendix A: Cloud SDK v1.7 Quick Reference
+## Appendix A: SDK Quick Reference
 
-```typescript
-import { PrismerClient } from '@prismer/sdk';
-
-// Initialize
-const client = new PrismerClient({
-  baseUrl: process.env.PRISMER_BASE_URL,
-  apiKey: process.env.PRISMER_API_KEY,
-});
-
-// Context API
-const content = await client.load(arxivUrl);
-const results = await client.search(query, { ranking: 'cache_first' });
-await client.save({ url, hqcc });
-
-// Parse API
-const parsed = await client.parsePdf(pdfUrl);
-const doc = await client.parse(url, { output: 'markdown' });
-
-// IM API
-const ws = await client.im.realtime.connectWS();
-ws.on('message.new', handleMessage);
-await client.im.messages.send({ conversationId, type: 'text', content });
-
-// Workspace binding
-const wsBinding = await client.im.workspace.init({
-  workspaceId,
-  userId,
-  userDisplayName,
-});
-```
+See `sdk/typescript/` for the full `@prismer/sdk` source code and API documentation.

@@ -459,7 +459,7 @@ Activate existing `PrismaSessionPersistence` for full workspace data persistence
 
 ### 5A. Workspace-UI Package (Priority — ~2.5 weeks)
 
-> Strategy: API Path Compatibility — Gateway mimics Cloud API, frontend code 100% reused with zero modifications.
+> Strategy: API Path Compatibility — Gateway mimics Next.js API, frontend code 100% reused with zero modifications.
 
 #### 5A.1 Extract & Build
 - [ ] Create `packages/workspace-ui/` monorepo package
@@ -530,15 +530,6 @@ Activate existing `PrismaSessionPersistence` for full workspace data persistence
 - [ ] Timeline: full read-only with replay capability
 - [ ] Social bar: Star / Fork / Comment / Request Collaborate buttons
 - [ ] Mobile: public workspace accessible via mobile read-only view
-
-### 5E. Cloud SDK Integration (using @prismer/sdk v1.7)
-- [ ] Replace custom API clients with `@prismer/sdk`
-- [ ] Context API: cached content retrieval (`load`, `save`, `search`)
-- [ ] Parse API: PDF → markdown/JSON
-- [ ] IM API: agent-to-agent, agent-to-human messaging
-- [ ] Realtime: WebSocket/SSE event streaming
-- [ ] Webhook: HMAC-verified event handling
-- [ ] Offline mode: local persistence + E2E encryption
 
 ---
 

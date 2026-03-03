@@ -1587,7 +1587,7 @@ export async function updateDataGrid(
  * Priority: process.env.PRISMER_API_KEY > config.prismerApiKey > null
  */
 function getPrismerApiKey(): string | null {
-  // 1. Environment variable (production: Nacos injection)
+  // 1. Environment variable
   if (process.env.PRISMER_API_KEY) {
     return process.env.PRISMER_API_KEY;
   }
@@ -1603,7 +1603,7 @@ function getPrismerApiKey(): string | null {
  * Get Prismer API base URL
  */
 function getPrismerBaseUrl(): string {
-  return process.env.PRISMER_BASE_URL || 'https://prismer.cloud';
+  return process.env.PRISMER_BASE_URL || '';
 }
 
 /**

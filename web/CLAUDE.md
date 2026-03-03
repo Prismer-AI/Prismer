@@ -98,7 +98,6 @@ Workspace gets special treatment in MainLayout: content area uses `overflow-hidd
   - `sync/` — Multi-client sync engine (see Agent System below)
   - `services/` — Business logic (paper, auth, parser, upload, asset, collection, offline, remote-paper)
   - `prisma.ts` — Prisma Client singleton (always import from `@/lib/prisma`)
-  - `nacos-config.ts` — Runtime config from Nacos (fallback to .env)
   - `s3.ts`, `redis.ts` — Infrastructure clients
 - `src/store/` — Global Zustand stores
 - `src/generated/prisma/` — Generated Prisma Client (never edit directly)
@@ -106,7 +105,6 @@ Workspace gets special treatment in MainLayout: content area uses `overflow-hidd
 - `prisma/` — Database schema and migrations
 - `python/` — Separate Python agent server (uses `uv` package manager, entry: `main.py`)
 - `docker/` — Container-side OpenClaw integration (plugins, tools, gateway, config)
-  - `plugin/prismer-im/` — IM Channel Plugin (v0.2.0, bridges Prismer Cloud IM ↔ OpenClaw agent)
   - `plugin/prismer-workspace/` — Workspace Skill Plugin (v0.5.0, 26 tools + find-skills skill)
   - `scripts/prismer-tools/` — 4 Python CLIs for container operations (latex, jupyter, component, sync)
   - `gateway/container-gateway.mjs` — Zero-dependency reverse proxy for internal services (:3000)
@@ -198,7 +196,7 @@ Frontend ← Bridge polls directives ← /workspace/.openclaw/directives/*.json 
 
 ### Configuration
 
-Minimal `.env` contains only build-time variables (DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL). All runtime config (API keys, model settings, external service URLs) loads from Nacos (`nacos.prismer.app`) with `.env` as fallback when Nacos is unavailable. Nacos uses separate namespaces for dev/test/prod environments. See `src/lib/nacos-config.ts`.
+Minimal `.env` contains build-time variables (DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL). Runtime config (API keys, model settings) is loaded from `.env`.
 
 ### Code Playground
 
@@ -349,7 +347,7 @@ The `docs/` directory contains canonical documents that serve as the project's l
 
 | Document | Purpose | When to Read |
 |----------|---------|--------------|
-| `docs/ARCH.md` | Engineering architecture — tech stack, source layout, data flow, sync layer, Cloud SDK | Before any structural changes or new module work |
+| `docs/ARCH.md` | Engineering architecture — tech stack, source layout, data flow, sync layer | Before any structural changes or new module work |
 | `docs/ROADMAP.md` | Engineering roadmap — phased delivery plan (Phase 0-5) | Before planning new features or prioritizing work |
 | `docs/TODO.md` | Current status & short-term tasks — WindowView convergence tracker | Before starting any implementation task |
 | `docs/DESIGN.md` | Interface design spec — layouts, components, interactions, visual states | Before any UI/UX work |
@@ -382,16 +380,11 @@ The `docs/` directory contains canonical documents that serve as the project's l
 - `docs/PRD.md` — Genspark PRD v2.0 (partially integrated into v2.0 mobile docs)
 - `docs/MOBILE_UX_DESIGN.md` — v1.0 UX design (superseded by `docs/mobile/MOBILE_DESIGN.md`)
 
-### External SDK Documentation
-
-- **Cloud SDK source**: `/Users/prismer/workspace/Prismer/sdk/typescript/` — @prismer/sdk v1.7 full source code (Context, Parse, IM APIs). Refer to this directory when investigating SDK internals, type definitions, or implementation details.
-
 ### Documentation Workflow (MANDATORY)
 
 **Before starting work:**
 1. Read the relevant doc(s) from the table above to understand current state and conventions
 2. Check `docs/TODO.md` for related pending tasks or known issues
-3. For Cloud SDK integration, read the SDK README
 
 **After completing work:**
 1. Update any doc that was affected by your changes:

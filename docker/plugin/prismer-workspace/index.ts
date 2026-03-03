@@ -70,7 +70,7 @@ function resolveConfig(api: OpenClawPluginApi): ResolvedPrismerWorkspaceConfig {
     return process.env[name] || fallback || '';
   });
 
-  // Resolve Prismer API key: env (Nacos) > plugin config (openclaw.json)
+  // Resolve Prismer API key: env > plugin config (openclaw.json)
   const prismerApiKey = process.env.PRISMER_API_KEY
     || (pluginConfig.prismerApiKey as string)
     || undefined;

@@ -25,7 +25,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Commit Message Format
 
-```
+```text
 type(scope): description
 
 [optional body]
@@ -36,7 +36,8 @@ type(scope): description
 Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 Example:
-```
+
+```text
 feat(paper-reader): add citation extraction from PDFs
 
 - Implemented PDF parsing for reference sections
@@ -48,24 +49,36 @@ Closes #123
 
 ## Development Setup
 
-*Documentation coming soon.*
+```bash
+cd web
+npm install
+cp .env.docker.example .env    # Edit and add your OPENAI_API_KEY
+npm run db:generate && npm run db:push
+npm run dev                    # → http://localhost:3000
+```
+
+Requires **Node.js 18+**. For the full development guide (environment variables, Docker profiles, testing), see [docs/CONTRIB.md](docs/CONTRIB.md).
 
 ## Areas We Need Help
 
 ### Academic Domain Experts
+
 Help us understand research workflows better and validate our approach to academic tooling.
 
 ### Frontend Engineers
+
 - Improve component UX and accessibility
 - Optimize performance for large documents
 - Enhance mobile responsiveness
 
 ### ML Engineers
+
 - Enhance RAG pipeline for citation accuracy
 - Improve citation verification algorithms
 - Optimize embedding strategies
 
 ### Technical Writers
+
 - API documentation
 - Tutorials and guides
 - Example projects

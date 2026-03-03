@@ -26,7 +26,7 @@
     "prismer-im": {
       "accounts": {
         "default": {
-          "imServerUrl": "${PRISMER_IM_SERVER_URL:-https://prismer.cloud}",
+          "imServerUrl": "${PRISMER_IM_SERVER_URL:-}",
           "agentToken": "${PRISMER_AGENT_TOKEN:-}",
           "conversationId": "${PRISMER_CONVERSATION_ID:-workspace-default}"
         }

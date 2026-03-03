@@ -39,7 +39,7 @@ export async function GET() {
     // AI 请求通过 /api/ai/* 代理处理，客户端不需要 API Key
     const config = {
       // AI 配置 - 只返回是否可用的状态，不返回 API Key
-      // 支持多种命名格式（Nacos YAML 扁平化可能使用不同格式）
+      // 支持多种命名格式
       aiEnabled: !!(
         process.env.OPENAI_API_KEY 
         || process.env.OPENAI_APIKEY 

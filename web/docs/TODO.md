@@ -544,7 +544,7 @@ useDesktopAgent → WebSocket → Agent Server → OpenClaw Container
 |---|------|--------|-------|
 | C1 | Migrate components to ai-client.ts | ✅ done | paperAgentService (3 calls), ChatPanel (1 call), AiEditor uses internal proxy |
 | C2 | Implement LLMUsageLog in /api/ai/chat | ✅ done | Console logging for non-stream usage, component tracking via `component` param |
-| C3 | Validate Nacos OPENAI_API_BASE_URL config | ✅ done | Architecture verified: Nacos → env → getAIConfig() → NewAPI gateway |
+| C3 | Validate OPENAI_API_BASE_URL config | ✅ done | Architecture verified: env → getAIConfig() → LLM gateway |
 
 ## Phase D — Asset Browser
 
@@ -657,7 +657,7 @@ useDesktopAgent → WebSocket → Agent Server → OpenClaw Container
 ### 2026-02-19: Phase C Complete
 - C1: Migrated paperAgentService.ts (3 fetch calls → aiChatStream/aiChat), ChatPanel.tsx (1 fetch call → aiChatStream). Fixed broken /api/ai/command → /api/ai/chat via unified client. AiEditor uses internal proxy (already correct).
 - C2: Added timing + usage logging to /api/ai/chat (non-stream). Console logs model, component, token counts, latency. Added `component` field support for client tracking.
-- C3: Validated Nacos architecture: OPENAI_API_BASE_URL env var loaded by nacos-config.ts → injected into process.env → read by getAIConfig() → proxied to NewAPI. No code changes needed.
+- C3: Validated OPENAI_API_BASE_URL architecture: env var → read by getAIConfig() → proxied to NewAPI. No code changes needed.
 
 ### 2026-02-19: Phase D Complete
 - D1: Created `src/components/shared/AssetBrowser.tsx` — CommandPalette-style modal, keyboard nav (↑↓/Enter/Esc), search via `/api/v2/assets?search=`, type filter, dark theme.
@@ -690,7 +690,7 @@ All 25 Phase 1.5 implementation items verified against source code:
 
 **Phase B (6/6):** Jupyter bg-slate-900 + floating sidebar, LaTeX no AgentChatPanel, CodePlayground always vs-dark, AGGrid no outer border, AIEditor toolbar scroll CSS, PDFReader clean
 
-**Phase C (3/3):** paperAgentService.ts imports ai-client (line 18), ChatPanel.tsx imports aiChatStream (line 13), Nacos config validated
+**Phase C (3/3):** paperAgentService.ts imports ai-client (line 18), ChatPanel.tsx imports aiChatStream (line 13), env config validated
 
 **Phase D (4/4):** AssetBrowser.tsx exists, integrated in AGGrid/AIEditor/Jupyter via componentEventBus
 
@@ -857,7 +857,7 @@ Wired the workspace frontend to the real container, added Docker/K8s distinction
   - `webhook.ts`: Webhook handler — `createWebhookHandler()` with HMAC-SHA256 verification, Express/Hono middleware adapters, `verifyWebhookSignature()`, reply builders.
   - `types.ts`: Type re-exports from SDK + application-specific extensions (`PaperContent`, `SearchResult`, `ParsedDocument`, `WorkspaceIMBinding`, `PrismerIMMessage`, `CloudSDKStatus`).
   - `index.ts`: Unified exports for all modules.
-- S3: Environment variables documented: `PRISMER_API_KEY`, `PRISMER_BASE_URL` (via Nacos or .env).
+- S3: Environment variables documented: `PRISMER_API_KEY`, `PRISMER_BASE_URL` (via .env).
 
 ---
 
@@ -870,7 +870,7 @@ Wired the workspace frontend to the real container, added Docker/K8s distinction
 |---|------|--------|-------|
 | S1 | Add `@prismer/sdk` to dependencies | ✅ done | Added `@prismer/sdk: ^1.7.0` to package.json |
 | S2 | Create `src/lib/cloud/` client wrapper | ✅ done | 7 files: client, context, parse, im, realtime, webhook, types |
-| S3 | Configure environment variables | ✅ done | `PRISMER_API_KEY`, `PRISMER_BASE_URL` via Nacos |
+| S3 | Configure environment variables | ✅ done | `PRISMER_API_KEY`, `PRISMER_BASE_URL` via .env |
 
 ### IM Integration (MVP Complete ✅)
 | # | Task | Status | Notes |

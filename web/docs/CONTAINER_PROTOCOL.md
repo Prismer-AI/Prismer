@@ -172,7 +172,7 @@ if (hasAgent && !agentRunning) {
 2. [ ] Verify SPA loads in standalone mode: `npx serve dist/` → opens in browser
 3. [ ] Update Gateway API compatibility routes if Cloud API response format changed:
    - `docker/gateway/container-gateway.mjs` — Bridge, Agent, Container proxy routes
-   - Verify response format matches Cloud API (`{ ok, data: { ... } }`)
+   - Verify response format matches Next.js API (`{ ok, data: { ... } }`)
 4. [ ] Update `docker/Dockerfile.openclaw` — `COPY packages/workspace-ui/dist/ /app/frontend/`
 5. [ ] Update `docker/VERSIONS.md` — workspace-ui version row
 6. [ ] Update `docker/compatibility.json` — workspace-ui component entry
@@ -193,11 +193,11 @@ if (hasAgent && !agentRunning) {
 
 ### Key principle
 
-**Frontend code is 100% reused** between Cloud and Local modes. The Gateway mimics Cloud API endpoints with identical response formats. When a Cloud API changes, the Gateway compatibility layer must be updated to match — this is the ONLY adaptation needed.
+**Frontend code is 100% reused** between hosted and Local modes. The Gateway mimics Next.js API endpoints with identical response formats. When an API changes, the Gateway compatibility layer must be updated to match -- this is the ONLY adaptation needed.
 
 ### API compatibility routes
 
-| Cloud API Path | Gateway Handler | Response Format |
+| API Path | Gateway Handler | Response Format |
 |----------------|----------------|-----------------|
 | `GET /api/v2/im/bridge/:wsId` | `handleBridgeStatus()` | `{ ok, data: { status, gatewayUrl } }` |
 | `POST /api/v2/im/bridge/:wsId` | `handleBridgeChat()` | `{ ok, data: { response, directives } }` |

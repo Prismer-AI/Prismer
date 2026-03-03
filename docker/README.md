@@ -208,7 +208,7 @@ docker/
 ### v0.4.0 (2026-02-09) ✅ Phase 1 实现完成
 - **容器编排**: DockerOrchestrator 实现完成，支持创建/启动/停止/删除容器
 - **Gateway 代理**: TCP Proxy 方案实现，解决 OpenClaw Gateway localhost 绑定问题
-- **LLM Gateway**: 支持通过 Nacos 配置自定义 Model Provider (prismer-gateway)
+- **LLM Gateway**: 支持自定义 Model Provider (prismer-gateway)
 - **Agent APIs**: 完整的 CRUD + start/stop/health/logs API
 - **配置热更新**: 容器重启时自动重新部署最新配置
 - **学术工具验证**: LaTeX、Python/NumPy、arXiv 搜索、OpenClaw Agent 通信全部通过
@@ -242,8 +242,7 @@ docker/
 ### 前置要求
 
 - Docker Desktop 运行中
-- Nacos 配置中心可访问 (nacos.prismer.app)
-- 配置以下环境变量 (通过 Nacos 或 .env):
+- 配置以下环境变量 (通过 .env):
 
 ```bash
 # LLM Gateway 配置
@@ -315,7 +314,7 @@ Gateway URL: ws://<container-ip>:18901
 |------|------|------|
 | 容器创建/启动/停止 | ✅ | DockerOrchestrator |
 | Gateway 连接 | ✅ | TCP Proxy + WebSocket |
-| LLM Gateway 配置 | ✅ | Nacos → 容器配置 |
+| LLM Gateway 配置 | ✅ | 环境变量 → 容器配置 |
 | LaTeX 编译 | ✅ | 容器内 :8080 |
 | Python/NumPy | ✅ | 容器内 Python 3.x |
 | arXiv 搜索 | ✅ | 外部 API |
@@ -323,13 +322,12 @@ Gateway URL: ws://<container-ip>:18901
 
 ---
 
-## Phase 2: Cloud IM API 集成 ✅ 已完成
+## Phase 2: IM API 集成 ✅ 已完成
 
 > **实现**: prismer-im v0.2.0 Channel Plugin + Bridge API `/api/v2/im/bridge/*`
 > **SDK**: @prismer/sdk v1.7 (WebSocket + REST)
-> **API 文档**: `prismercloud/src/app/docs/CLOUD-SERVICES-API.md`
 
-### Cloud IM API 概览
+### IM API 概览
 
 | 功能 | API | 状态 |
 |------|-----|------|
@@ -339,15 +337,15 @@ Gateway URL: ws://<container-ip>:18901
 | 群组消息 | `POST /api/im/groups/:id/messages` | ✅ Live |
 | @mention 路由 | 自动解析 | ✅ Live |
 | Workspace 初始化 | `POST /api/im/workspace/init` | ✅ Live |
-| WebSocket | `wss://prismer.cloud/ws?token=JWT` | ✅ Live |
-| SSE | `https://prismer.cloud/sse?token=JWT` | ✅ Live |
+| WebSocket | `wss://<im-server>/ws?token=JWT` | ✅ Live |
+| SSE | `https://<im-server>/sse?token=JWT` | ✅ Live |
 | Credits | `GET /api/im/credits` | ✅ Live |
 
 ### Agent 注册示例
 
 ```bash
 # Bound Agent (使用 API Key，共享用户 credits)
-curl -X POST https://prismer.cloud/api/im/register \
+curl -X POST https://<im-server>/api/im/register \
   -H "Authorization: Bearer $PRISMER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -370,11 +368,11 @@ curl -X POST https://prismer.cloud/api/im/register \
 │                                                                          │
 │  Prismer Library Frontend                                                │
 │       │                                                                  │
-│       │ WebSocket: wss://prismer.cloud/ws?token=JWT                     │
+│       │ WebSocket: wss://<im-server>/ws?token=JWT                        │
 │       ▼                                                                  │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                   Prismer Cloud IM API                          │    │
-│  │                   (prismer.cloud/api/im/*)                       │    │
+│  │                   IM Server API                                 │    │
+│  │                   (<im-server>/api/im/*)                          │    │
 │  └──────────────────────────────┬──────────────────────────────────┘    │
 │                                 │                                        │
 │                                 │ prismer-im Channel Plugin              │
@@ -393,7 +391,7 @@ curl -X POST https://prismer.cloud/api/im/register \
 | 任务 | 优先级 | Cloud API |
 |------|--------|-----------|
 | Agent 注册到 Cloud | P0 | `POST /api/im/register` |
-| 前端 WebSocket 连接 | P0 | `wss://prismer.cloud/ws` |
+| 前端 WebSocket 连接 | P0 | `wss://<im-server>/ws` |
 | prismer-im Channel Plugin | P0 | HTTP + WebSocket |
 | 消息收发 | P0 | `POST /api/im/direct/:id/messages` |
 | UIDirective 注册模式重构 | P1 | 见下文 |
@@ -583,7 +581,7 @@ GET /api/workspace/capabilities
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Prismer Cloud                                   │
+│                              IM Server (External)                            │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
 │  │                          IM Server (:3200)                              │ │
 │  │   • REST API (/api/*)    • WebSocket (/ws)    • Webhook (P2)           │ │
@@ -744,7 +742,7 @@ type GatewayFrame =
 
 // prismer-im 实现 ChannelPlugin<PrismerIMAccountConfig> 接口
 interface PrismerIMAccountConfig {
-  imServerUrl: string;       // e.g., "ws://im.prismer.cloud:3200/ws"
+  imServerUrl: string;       // e.g., "ws://localhost:3456/ws"
   agentToken: string;        // JWT token
   conversationId: string;    // 绑定的会话 ID
   capabilities?: string[];   // Agent 能力声明

@@ -132,7 +132,7 @@ A builtin skill registry for discovering and managing workspace skills:
 
 - Local workspace: `/workspace/skills/<skill-id>/manifest.json`
 - Builtin: `/home/user/.openclaw/workspace/skills/`
-- Cloud (future): `https://prismer.cloud/api/skills`
+- Cloud (future): Set `PRISMER_SKILL_REGISTRY_URL` env var
 
 ## Source Files
 

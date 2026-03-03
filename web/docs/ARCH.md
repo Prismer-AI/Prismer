@@ -39,7 +39,7 @@
 | Toast | Sonner | - |
 | Real-time | Custom WebSocket protocol | - |
 | Storage | AWS S3 (STS uploads) | - |
-| Config | Nacos (runtime config) | - |
+| Config | Environment variables (.env) | - |
 
 ## 2. Codebase Metrics
 
@@ -148,7 +148,6 @@ src/
 │   │   └── offline.service.ts    # Offline support
 │   ├── prisma.ts                 # Prisma Client singleton
 │   ├── remote-db.ts              # MySQL connection pool
-│   ├── nacos-config.ts           # Runtime config loader
 │   ├── s3.ts                     # AWS S3 client
 │   └── redis.ts                  # Redis client
 ├── store/                        # Global Zustand stores
@@ -241,7 +240,7 @@ MainLayout
 ┌─────────▼────────────────────▼───────────┐
 │              remote-db.ts                │
 │         MySQL connection pool            │
-│    (nacos-config for credentials)        │
+│    (env-based credentials)               │
 └─────────────────┬────────────────────────┘
                   │
 ┌─────────────────▼────────────────────────┐
@@ -516,10 +515,8 @@ agent-server.ts (port 3456)
 ## 10. Configuration
 
 - **Build-time** (`.env`): `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`
-- **Runtime** (Nacos): API keys, model settings, service URLs. Loaded via `nacos-config.ts`, fallback to `.env`
-- **Nacos server**: `nacos.prismer.app` with dev/test/prod namespaces
-- **K8s** (`.env`): `K8S_CLUSTER_URL`, `K8S_SERVICE_ACCOUNT_TOKEN`, `K8S_NAMESPACE`, `K8S_NODE_EXTERNAL_IP`, `K8S_IN_CLUSTER`, `K8S_KUBECONFIG_PATH`
-- **Container**: `DEFAULT_ORCHESTRATOR` (docker|kubernetes), `CONTAINER_IMAGE` (default: `docker.prismer.dev/prismer-academic:v5.0-openclaw`)
+- **Runtime** (`.env`): API keys, model settings, service URLs. All configuration via environment variables.
+- **Container**: `CONTAINER_IMAGE` (default: `docker.prismer.dev/prismer-academic:v5.0-openclaw`)
 
 ## 11. Container Gateway (v1.1.0)
 
@@ -746,191 +743,19 @@ model AgentCronJob {
 | `GET` | `/api/agents/:id/hooks` | List hooks + status |
 | `PATCH` | `/api/agents/:id/hooks/:name` | Enable/disable hook |
 
-## 13. Prismer Cloud SDK (v1.7)
-
-The `@prismer/sdk` package provides TypeScript-first access to Prismer Cloud services. Install via `npm install @prismer/sdk`.
-
-### SDK Architecture
-
-```
-@prismer/sdk (v1.7.0)
-├── PrismerClient           — Main entry point
-│   ├── load() / save()     — Context API (cached content retrieval)
-│   ├── search()            — Search with ranking presets
-│   ├── parsePdf() / parse()— Parse API (PDF → markdown/JSON)
-│   └── im.*                — IM API namespace
-│       ├── account         — register, me, refreshToken
-│       ├── direct          — DM send/history
-│       ├── groups          — create, list, send, members
-│       ├── conversations   — list, get, markAsRead
-│       ├── messages        — send, edit, delete, history
-│       ├── contacts        — list, discover agents
-│       ├── bindings        — social platform bindings
-│       ├── credits         — balance, transactions
-│       ├── files           — upload, presign, multipart
-│       ├── workspace       — init, addAgent, mentionAutocomplete
-│       ├── realtime        — connectWS(), connectSSE()
-│       └── health()        — service health check
-├── RealtimeWSClient        — WebSocket realtime (bidirectional)
-├── RealtimeSSEClient       — SSE realtime (receive-only)
-└── PrismerWebhook          — Webhook handler with HMAC verification
-```
-
-### Integration Patterns
-
-**1. Agent Registration (anonymous or with API key):**
-
-```typescript
-const client = new PrismerClient();
-const result = await client.im.account.register({
-  type: 'agent',
-  username: 'research-bot',
-  displayName: 'Research Assistant',
-  agentType: 'assistant',
-  capabilities: ['chat', 'search', 'parse'],
-});
-client.setToken(result.data!.token);
-```
-
-**2. Workspace-IM Binding:**
-
-```typescript
-// Initialize 1:1 workspace (user + agent)
-const ws = await client.im.workspace.init({
-  workspaceId: workspaceSession.id,
-  userId: user.id,
-  userDisplayName: user.name,
-});
-// ws.data.conversationId → IM conversation for this workspace
-```
-
-**3. Realtime Events:**
-
-```typescript
-const ws = client.im.realtime.connectWS({ token });
-ws.on('message.new', (msg) => {
-  // Sync to workspaceStore.addMessage()
-});
-ws.on('typing.indicator', (data) => {
-  // Show typing indicator in UI
-});
-```
-
-**4. Context API for Paper Loading (Phase 4D — ContextManager):**
-
-```typescript
-// ContextManager (planned: src/lib/context/contextManager.ts)
-// Wraps Cloud SDK context + parse APIs for agent-server.ts
-
-// Load paper context (HQCC — High-Quality Compressed Content)
-const result = await client.load(arxivUrl);
-if (result.success && result.result?.hqcc) {
-  // Use compressed content for LLM context
-}
-
-// Fallback: parse PDF → markdown → cache
-const parsed = await client.parsePdf(pdfUrl, { mode: 'markdown' });
-await client.save({ url: pdfUrl, hqcc: parsed.data.content });
-
-// Search related papers
-const results = await client.search(query, { ranking: 'relevance_first', topK: 5 });
-```
-
-**5. File Upload (Phase 4E):**
-
-```typescript
-// Small files (<5MB text): POST /api/workspace/:id/files → Prisma DB
-// Large/binary files: Cloud SDK → CDN
-const upload = await client.im.files.upload({ file, filename });
-```
-
-### SDK Environment Variables
-
-```bash
-PRISMER_API_KEY=sk-prismer-...        # API key (or use constructor)
-PRISMER_BASE_URL=https://prismer.cloud # Override base URL
-```
-
-### Offline Mode (planned)
-
-The SDK supports offline-first operation with:
-- Local persistence via IndexedDB/SQLite
-- Outbox queue for pending operations
-- E2E encryption with passphrase-derived keys
-- Multi-tab coordination via BroadcastChannel
-
-### Local IM Backend (MVP Implementation)
-
-While full Cloud SDK integration is pending, a local IM backend provides immediate persistence:
-
-**Service Layer** (`src/lib/services/im.service.ts`):
-```typescript
-import { imService } from '@/lib/services/im.service';
-
-// Register agent/user
-const { user, isNew } = await imService.user.register({
-  username: 'research-agent',
-  displayName: 'Research Agent',
-  type: 'agent',
-  agentType: 'assistant',
-  capabilities: ['chat', 'search'],
-});
-
-// Initialize workspace-IM binding
-const { conversationId, imUser } = await imService.workspace.init({
-  workspaceId: 'workspace-123',
-  userId: 'user-1',
-  userDisplayName: 'Alice',
-});
-
-// Send message
-const message = await imService.message.send({
-  conversationId,
-  senderId: imUser.id,
-  content: 'Hello!',
-  type: 'text',
-});
-```
-
-**API Routes** (`/api/v2/im/*`):
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/v2/im/register` | POST | Register agent/user |
-| `/api/v2/im/conversations` | GET/POST | List/create conversations |
-| `/api/v2/im/conversations/[id]` | GET/PATCH | Get/update conversation |
-| `/api/v2/im/conversations/[id]/messages` | GET/POST | Message history/send |
-| `/api/v2/im/workspace/[workspaceId]` | GET/POST/PUT | Workspace IM binding |
-
-**Frontend Hook** (`src/app/workspace/hooks/useIMSync.ts`):
-```typescript
-const { conversationId, isReady, persistMessage, loadHistory } = useIMSync({
-  workspaceId: 'demo',
-  userId: 'user-1',
-  userDisplayName: 'Developer',
-});
-
-// Persist messages to IM backend
-if (isReady) {
-  await persistMessage(userMessage);
-}
-```
-
-> **Note (Phase 4F)**: `useIMSync` will be simplified to read-only history loading + IM conversation init. Message persistence will move to agent-server.ts → PersistenceProxy → WorkspaceMessage (unified path). IMMessage will be reserved for cross-workspace communication only.
-
-## 14. Container Plugins & Tools
+## 13. Container Plugins & Tools
 
 The `docker/` directory contains four modules that run inside the OpenClaw agent container. Each has its own README with full documentation; see `docker/VERSIONS.md` for version tracking.
 
 | Module | Version | Type | Purpose |
 |--------|---------|------|---------|
-| `prismer-im` | 0.2.0 | Channel Plugin | Bridges Prismer Cloud IM ↔ OpenClaw agent via `@prismer/sdk` v1.7 |
 | `prismer-workspace` | 0.5.0 | Skill Plugin | 26 tools via `registerTool()` API (latex, jupyter, pdf, code, data, ui control, content update, workspace context, academic, gallery) |
 | `prismer-tools` | 0.1.0 | Python CLIs | 4 CLI tools (prismer-latex, prismer-jupyter, prismer-component, prismer-workspace-sync) installed at `/home/user/.local/bin/` |
 | `container-gateway` | 1.1.0 | Reverse Proxy | Zero-dependency Node.js proxy routing to 5 internal services |
 
 **Directive pipeline**: Agent tools write JSON files to `/workspace/.openclaw/directives/`. The Bridge API (`/api/v2/im/bridge/[workspaceId]`) reads these files via `docker exec`, parses them into `UIDirective` objects, and clears processed files. Three sources are checked in order: (1) WebSocket tool events, (2) directive files from prismer-* tools, (3) filesystem scan fallback.
 
-## 15. CI/CD & Deployment
+## 14. CI/CD & Deployment
 
 - **CI**: GitLab CI (`.gitlab-ci.yml`) — build → deploy → k8s-deploy (ArgoCD)
 - **Docker (app)**: Multi-stage build (node:20-alpine), standalone output
@@ -939,7 +764,7 @@ The `docker/` directory contains four modules that run inside the OpenClaw agent
 - **Desktop**: Tauri 2 (macOS)
 - **Mobile**: Tauri 2 iOS (WKWebView, iPhone 16 Pro Max simulator)
 
-## 16. Test Infrastructure
+## 15. Test Infrastructure
 
 Four-layer test system covering unit through full E2E:
 

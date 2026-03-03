@@ -100,7 +100,7 @@ init_workspace() {
   local model_api_key="${OPENAI_API_KEY:-}"
   local model_base_url="${OPENAI_API_BASE_URL:-http://34.60.178.0:3000/v1}"
   local default_model="${AGENT_DEFAULT_MODEL:-us-kimi-k2.5}"
-  local im_server_url="${PRISMER_IM_SERVER_URL:-https://prismer.cloud}"
+  local im_server_url="${PRISMER_IM_SERVER_URL:-}"
   local agent_token="${PRISMER_AGENT_TOKEN:-}"
   local conversation_id="${PRISMER_CONVERSATION_ID:-workspace-default}"
   local api_base_url="${PRISMER_API_BASE_URL:-http://host.docker.internal:3000}"

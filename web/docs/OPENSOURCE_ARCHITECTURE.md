@@ -10,31 +10,15 @@
 
 **不是分离代码，而是让容器模拟云端 API**。
 
-前端代码调用 `/api/v2/im/bridge/:wsId`，无论后端是 Prismer Cloud 还是容器内 Gateway，都返回相同格式的响应。这样：
+前端代码调用 `/api/v2/im/bridge/:wsId`，无论后端是 Next.js API 还是容器内 Gateway，都返回相同格式的响应。这样：
 
 - **前端代码**: 100% 复用，零修改
-- **容器 Gateway**: 扩展现有路由，模拟云端 API
+- **容器 Gateway**: 扩展现有路由，模拟 Next.js API
 - **适配工作量**: 仅在容器侧
 
-## 架构对比
+## 架构
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Cloud Mode (现有)                               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   Browser                      Prismer Cloud                   Container    │
-│   ┌──────────────┐            ┌─────────────────┐            ┌───────────┐ │
-│   │ workspace-ui │───────────▶│ Next.js API     │───────────▶│ Gateway   │ │
-│   │ (React SPA)  │            │ /api/v2/im/...  │            │ :3000     │ │
-│   │              │◀───────────│ /api/container/ │◀───────────│           │ │
-│   └──────────────┘            │ /api/agents/    │            │ OpenClaw  │ │
-│                               │                 │            │ Agent     │ │
-│                               │ Prisma + MySQL  │            └───────────┘ │
-│                               │ @prismer/sdk    │                          │
-│                               └─────────────────┘                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Local Mode (开源容器单例)                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -436,9 +420,7 @@ await fetch(`${config.apiBaseUrl}/api/agents/${config.agentId}/directive`, ...);
 ```typescript
 // E2E 测试示例
 describe('Workspace Chat', () => {
-  const baseUrl = process.env.MODE === 'local'
-    ? 'http://localhost:3000'
-    : 'https://prismer.cloud';
+  const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
 
   it('should send message and get response', async () => {
     // 相同的测试代码，不同的 baseUrl
@@ -484,7 +466,7 @@ CMD ["node", "/app/gateway/index.mjs"]
 | 方面 | 策略 |
 |------|------|
 | 前端代码 | 100% 复用，零修改 |
-| API 兼容 | Gateway 模拟 Cloud API — Tier 1 (8 核心) + Tier 2 (7 增强) + Tier 3 (8 stub) |
+| API 兼容 | Gateway 模拟 Next.js API — Tier 1 (8 核心) + Tier 2 (7 增强) + Tier 3 (8 stub) |
 | 插件 | prismer-workspace v0.5.0 (26 tools) 零修改，prismer-im 不需要 |
 | 数据库 | SQLite 替代 Prisma/MySQL（消息、组件状态、directive、notes） |
 | 测试验证 | 现有四层测试 (59+ tests) 跑双模式 |
@@ -500,10 +482,10 @@ CMD ["node", "/app/gateway/index.mjs"]
 | Container Image (v5.0) | ✅ 已就绪 | 基础镜像含所有服务 |
 | container-gateway (v1.1.0) | ✅ 已有基础 | 需扩展 Cloud API 兼容路由 |
 | prismer-workspace plugin (v0.5.0) | ✅ 零修改 | 26 tools, `registerTool()` API |
-| Bridge API (`/api/v2/im/bridge/*`) | ✅ Cloud 侧已实现 | Gateway 需实现 Local 等价 |
+| Bridge API (`/api/v2/im/bridge/*`) | ✅ Next.js 侧已实现 | Gateway 需实现 Local 等价 |
 | 前端 Directive Pipeline | ✅ 已验证 | 四层测试 59+ tests 通过 (Unit + L1:21 + L2:32 + L3:6) |
 | @prismer/workspace-ui 包 | 📋 未开始 | Phase 5A.1: 提取 + Vite 构建 |
-| Gateway API 兼容层 | 📋 未开始 | Phase 5A.2: 模拟 Cloud API |
+| Gateway API 兼容层 | 📋 未开始 | Phase 5A.2: 模拟 Next.js API |
 | SQLite 集成 | 📋 未开始 | Phase 5A.2: 消息/状态持久化 |
 | SPA 静态文件服务 | 📋 未开始 | Phase 5A.3: Gateway 托管 |
 | E2E 双模式测试 | 📋 未开始 | Phase 5A.3: 同一测试跑两种模式 |

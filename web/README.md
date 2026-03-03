@@ -199,8 +199,6 @@ NEXTAUTH_SECRET="your-secret-here"
 NEXTAUTH_URL="http://localhost:3000"
 ```
 
-Runtime config (API keys, model settings) loads from Nacos (`nacos.prismer.app`) with `.env` fallback. See `src/lib/nacos-config.ts`.
-
 ### Running with Agent Container
 
 ```bash
@@ -281,42 +279,7 @@ Change protocol: `docs/CONTAINER_PROTOCOL.md`
 
 ## Open Source Plan
 
-### Strategy: API Path Compatibility
-
-**The core idea**: instead of splitting the codebase, make the container gateway mimic the Cloud API. The frontend code stays 100% unchanged — only the container-side gateway needs extension.
-
-```
-Cloud Mode:   Browser → Next.js API → Container Gateway → Agent
-Local Mode:   Browser → Container Gateway (mimics Next.js API) → Agent
-```
-
-See `docs/OPENSOURCE_ARCHITECTURE.md` for the full design, including:
-- 4-tier API endpoint classification (8 must-have, 7 nice-to-have, 8 stubs, 5 not needed)
-- Gateway extension code examples
-- SQLite integration plan for local persistence
-- Work breakdown (~3 weeks estimated)
-
-### Key Tasks for Open Source
-
-| Task | Effort | Description |
-|------|--------|-------------|
-| workspace-ui extraction | 3d | Extract workspace frontend as embeddable SPA (`@prismer/workspace-ui`) |
-| Gateway Tier 1 APIs | 4d | Bridge chat/history/SSE, agent health, container proxy, workspace agent |
-| Gateway Tier 2 APIs | 2d | Notes, component states, context, file sync, LaTeX compile |
-| Gateway Tier 3 stubs | 1d | Agent start/stop/logs, tasks/timeline/snapshots |
-| SQLite integration | 2d | Message/state/directive persistence in container |
-| Static file serving | 0.5d | Serve workspace-ui build from gateway |
-| Testing (dual-mode) | 2d | Run existing L1/L2 tests in both Cloud and Local modes |
-
-### Version Baseline
-
-| Component | Version | Local Mode Status |
-|-----------|---------|-------------------|
-| Container Image | v5.0-openclaw | Base image, use as-is |
-| prismer-workspace | 0.5.0 | Zero-modification needed |
-| prismer-im | 0.2.0 | Not loaded in Local mode (no Cloud IM) |
-| container-gateway | 1.1.0 | Needs Cloud API compat routes |
-| prismer-tools | 0.1.0 | No changes needed |
+See `docs/OPENSOURCE_ARCHITECTURE.md` for the full open-source design.
 
 ---
 

@@ -63,3 +63,6 @@ public/data/latex-output/
 # Prisma dev database (SQLite)
 prisma/dev.db
 prisma/dev.db-journal
+
+# Prisma generated engine (local cache)
+prisma/prisma/
