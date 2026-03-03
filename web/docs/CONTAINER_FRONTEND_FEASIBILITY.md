@@ -105,16 +105,16 @@ The workspace frontend calls **11 unique REST endpoints**:
 
 | Endpoint | Purpose | Local Mode Handling |
 |----------|---------|---------------------|
-| `POST /api/v2/im/bridge/:wsId` | Send message, receive directives | Gateway 本地处理 → Agent |
-| `GET /api/v2/im/bridge/:wsId` | Status check, load history | Gateway 返回固定 connected |
+| `POST /api/v2/im/bridge/:wsId` | Send message, receive directives | Gateway handles locally → Agent |
+| `GET /api/v2/im/bridge/:wsId` | Status check, load history | Gateway returns fixed connected |
 | `GET /api/v2/im/bridge/:wsId?include=messages` | Message history | Gateway → SQLite |
 | `POST /api/agents/:id/start` | Start container (SSE) | N/A (container already running) |
 | `POST /api/agents/:id/stop` | Stop container | N/A (container lifecycle external) |
-| `GET /api/agents/:id/health` | Health + version check | Gateway 固定返回 healthy |
-| `GET /api/workspace/:id/agent` | Get agent binding | Gateway 模拟返回 |
-| `POST /api/workspace/:id/agent/ensure` | Create agent if missing | Gateway 模拟返回 |
-| `GET /api/container/:id/jupyter/*` | Jupyter proxy | Gateway 直接 Proxy :8888 |
-| `GET /api/container/:id/latex/*` | LaTeX proxy | Gateway 直接 Proxy :8080 |
+| `GET /api/agents/:id/health` | Health + version check | Gateway always returns healthy |
+| `GET /api/workspace/:id/agent` | Get agent binding | Gateway returns simulated response |
+| `POST /api/workspace/:id/agent/ensure` | Create agent if missing | Gateway returns simulated response |
+| `GET /api/container/:id/jupyter/*` | Jupyter proxy | Gateway directly proxies to :8888 |
+| `GET /api/container/:id/latex/*` | LaTeX proxy | Gateway directly proxies to :8080 |
 | `POST /api/workspace/:id/messages` | Persist messages | Gateway → SQLite |
 
 ### 3.4 Heavy Editor Dependencies
@@ -154,24 +154,24 @@ WindowViewer lazy-loads 8 editor components with significant bundle sizes:
 
 > Detailed in `docs/OPENSOURCE_ARCHITECTURE.md`
 
-**Core insight**: **不是分离代码，而是让容器模拟云端 API**。
+**Core insight**: **Instead of separating code, make the container mimic the Cloud API**.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         Local Mode (开源容器单例)                     │
+│                    Local Mode (Open-Source Container Standalone)      │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │   Browser                                Container (All-in-One)     │
 │   ┌──────────────┐                      ┌────────────────────────┐  │
 │   │ workspace-ui │─────────────────────▶│ Gateway :3000           │  │
-│   │ (同样的代码)  │                      │                         │  │
-│   │              │◀─────────────────────│ 路由 (兼容云端):         │  │
-│   └──────────────┘                      │ /api/v2/im/bridge/* → 本地│
-│         │                               │ /api/container/*  → 本地 │  │
-│         │ 相同的 API 调用                │ /api/agents/*     → 本地 │  │
-│         │ 相同的响应格式                 │ /api/v1/jupyter   → :8888│  │
+│   │ (same code)  │                      │                         │  │
+│   │              │◀─────────────────────│ Routes (Cloud-compat):  │  │
+│   └──────────────┘                      │ /api/v2/im/bridge/* → local│
+│         │                               │ /api/container/*  → local │  │
+│         │ Same API calls                │ /api/agents/*     → local │  │
+│         │ Same response format          │ /api/v1/jupyter   → :8888│  │
 │         ▼                               │ /api/v1/latex     → :8080│  │
-│   零代码修改                             │                         │  │
+│   Zero code changes                     │                         │  │
 │                                         │ SQLite + OpenClaw Agent  │  │
 │                                         └────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
@@ -223,9 +223,9 @@ Extends existing `container-gateway.mjs`:
 ├── src/
 │   ├── index.mjs             # Main entry (extends container-gateway.mjs)
 │   ├── routes/
-│   │   ├── bridge.mjs        # /api/v2/im/bridge/* 处理
-│   │   ├── container.mjs     # /api/container/* 代理
-│   │   └── agents.mjs        # /api/agents/* 处理
+│   │   ├── bridge.mjs        # /api/v2/im/bridge/* handler
+│   │   ├── container.mjs     # /api/container/* proxy
+│   │   └── agents.mjs        # /api/agents/* handler
 │   ├── db/
 │   │   ├── sqlite.mjs        # SQLite operations
 │   │   └── schema.sql        # Messages/state/directives tables
@@ -241,14 +241,14 @@ Extends existing `container-gateway.mjs`:
 
 Frontend calls the **same paths** in both Cloud and Local modes:
 
-| Endpoint | Cloud 实现 | Local 实现 | 响应格式 |
+| Endpoint | Cloud Implementation | Local Implementation | Response Format |
 |----------|-----------|-----------|---------|
-| `GET /api/v2/im/bridge/:wsId` | Bridge API + Prisma | Gateway 本地处理 | `{ ok, data: { status, gatewayUrl } }` |
+| `GET /api/v2/im/bridge/:wsId` | Bridge API + Prisma | Gateway handles locally | `{ ok, data: { status, gatewayUrl } }` |
 | `POST /api/v2/im/bridge/:wsId` | Bridge API → Container | Gateway → Agent | `{ ok, data: { response, directives } }` |
 | `GET /api/v2/im/bridge/:wsId?include=messages` | IM Database | SQLite | `{ ok, data: { messages: [...] } }` |
-| `GET /api/container/:agentId/jupyter/*` | Proxy to Container | 直接 Proxy :8888 | Jupyter API |
-| `GET /api/container/:agentId/latex/*` | Proxy to Container | 直接 Proxy :8080 | LaTeX API |
-| `GET /api/agents/:id/health` | Agent Instance 查询 | 固定返回 healthy | `{ status: 'running' }` |
+| `GET /api/container/:agentId/jupyter/*` | Proxy to Container | Direct proxy to :8888 | Jupyter API |
+| `GET /api/container/:agentId/latex/*` | Proxy to Container | Direct proxy to :8080 | LaTeX API |
+| `GET /api/agents/:id/health` | Agent Instance query | Always returns healthy | `{ status: 'running' }` |
 
 ### 5.3 Local Persistence (SQLite)
 
@@ -294,8 +294,8 @@ Mode 2: Local (open-source container)
 ┌────────────────────────────────────────────────────────┐
 │  Browser → Container Gateway (:3000)                    │
 │  ├── / → workspace-ui (static SPA)                     │
-│  ├── /api/v2/im/bridge → Gateway 本地处理 → Agent      │
-│  └── /api/container/* → 直接 Proxy :8888/:8080         │
+│  ├── /api/v2/im/bridge → Gateway handles locally → Agent│
+│  └── /api/container/* → Direct proxy to :8888/:8080    │
 └────────────────────────────────────────────────────────┘
 ```
 

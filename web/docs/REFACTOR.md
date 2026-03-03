@@ -14,37 +14,37 @@
  limitations under the License.
 -->
 
-# REFACTOR — 代码结构重构方案
+# REFACTOR — Code Structure Refactoring Plan
 
 > Created: 2026-02-15
 > Completed: 2026-02-15
 > Status: ✅ All Phases Complete (A → B → C → D)
-> Goal: Phase 1 开始前的结构整理，降低后续工程腐化风险
+> Goal: Structural cleanup before Phase 1, reducing future engineering decay risk
 
 ---
 
-## 0. 总体诊断
+## 0. Overall Diagnosis
 
-对 431 个 TS/TSX 文件（~53K 行）的全面分析，发现以下 **6 类结构性问题**：
+A comprehensive analysis of 431 TS/TSX files (~53K lines) revealed the following **6 categories of structural issues**:
 
-| # | 问题 | 严重度 | 影响范围 |
+| # | Issue | Severity | Impact Scope |
 |---|------|--------|----------|
-| 1 | **依赖方向违规** — 底层模块反向依赖上层应用层 | Critical | lib/sync → app/workspace, components → app/workspace |
-| 2 | **Workspace Store 巨石化** — 1,239 行 / 70+ actions / 11 个领域混杂 | Critical | 整个 workspace 功能开发 |
-| 3 | **类型定义散布** — 11 处 types.ts，无中央注册 | High | 跨模块协作、重构安全性 |
-| 4 | **API 路由三套模式** — 认证、错误处理、响应格式各不统一 | High | 所有后端接口 |
-| 5 | **Preview 组件重复胶水代码** — 9 处 `require("@/app/workspace/...")` | Medium | 编辑器与 workspace 集成 |
-| 6 | **Demo 数据嵌入生产代码** — 1,549 行 mock 数据混在 app 内 | Medium | 代码清晰度、构建体积 |
+| 1 | **Dependency direction violation** — low-level modules reverse-depend on upper application layer | Critical | lib/sync → app/workspace, components → app/workspace |
+| 2 | **Workspace Store monolith** — 1,239 lines / 70+ actions / 11 domains mixed together | Critical | All workspace feature development |
+| 3 | **Scattered type definitions** — 11 separate types.ts files, no central registry | High | Cross-module collaboration, refactoring safety |
+| 4 | **Three API route patterns** — authentication, error handling, and response formats all inconsistent | High | All backend endpoints |
+| 5 | **Duplicate glue code in Preview components** — 9 occurrences of `require("@/app/workspace/...")` | Medium | Editor and workspace integration |
+| 6 | **Demo data embedded in production code** — 1,549 lines of mock data mixed into app | Medium | Code clarity, build size |
 
 ---
 
-## 1. 依赖方向违规（Critical）
+## 1. Dependency Direction Violation (Critical)
 
-### 1.1 现状
+### 1.1 Current State
 
-正确的依赖方向应该是 `types → lib → components → app`，但当前存在两类反向依赖：
+The correct dependency direction should be `types → lib → components → app`, but two types of reverse dependencies currently exist:
 
-**A. `src/lib/sync/` → `src/app/workspace/`（底层依赖上层）**
+**A. `src/lib/sync/` → `src/app/workspace/` (low-level depending on upper layer)**
 
 ```
 src/lib/sync/useAgentStore.ts:24
@@ -54,11 +54,11 @@ src/lib/sync/componentStateConfig.ts:8
   → import type { ComponentStates } from '@/app/workspace/types';
 ```
 
-lib 层是基础设施，不应该知道 app 层的具体 store 实现。这导致 sync 模块无法被其他 app 模块复用。
+The lib layer is infrastructure and should not know about the app layer's specific store implementation. This prevents the sync module from being reused by other app modules.
 
-**B. `src/components/editors/` → `src/app/workspace/`（共享组件依赖特定页面）**
+**B. `src/components/editors/` → `src/app/workspace/` (shared components depending on a specific page)**
 
-9 处通过 `require()` 动态引入 workspace 模块：
+9 occurrences dynamically importing workspace modules via `require()`:
 
 ```
 src/components/editors/previews/AGGridPreview.tsx:15
@@ -72,7 +72,7 @@ src/components/editors/pdf-reader/hooks/useAIPaperReader.ts:34
 src/components/editors/pdf-reader/components/ai/AskPaperChat.tsx:57
 ```
 
-每处都是类似的模式：
+Each occurrence follows a similar pattern:
 ```typescript
 try {
   const eventBusModule = require("@/app/workspace/lib/componentEventBus");
@@ -80,30 +80,30 @@ try {
 } catch { /* Not in workspace context */ }
 ```
 
-### 1.2 方案
+### 1.2 Solution
 
-**原则：依赖倒转 — 上层注入给下层，而非下层反向引用上层。**
+**Principle: Dependency Inversion — upper layers inject into lower layers, rather than lower layers reverse-referencing upper layers.**
 
-#### Step 1: 提取 componentEventBus 到 `src/lib/events/`
+#### Step 1: Extract componentEventBus to `src/lib/events/`
 
 ```
 src/lib/events/
-├── componentEventBus.ts    ← 从 app/workspace/lib/ 移出
-├── types.ts                ← 事件类型定义
+├── componentEventBus.ts    ← moved out from app/workspace/lib/
+├── types.ts                ← event type definitions
 └── index.ts
 ```
 
-这是最直接的一步：eventBus 本质上是跨组件通信基础设施，不属于 workspace 特有逻辑。移出后 9 处 `require()` hack 变成正常的 `import from '@/lib/events'`。
+This is the most straightforward step: eventBus is essentially cross-component communication infrastructure and does not belong to workspace-specific logic. After moving it out, the 9 `require()` hacks become normal `import from '@/lib/events'`.
 
-#### Step 2: 解耦 `useAgentStore` 对 workspace store 的依赖
+#### Step 2: Decouple `useAgentStore`'s dependency on workspace store
 
-当前 `useAgentStore.ts` 直接 import `useWorkspaceStore` 来同步状态。改为**回调注入模式**：
+Currently `useAgentStore.ts` directly imports `useWorkspaceStore` to sync state. Change to a **callback injection pattern**:
 
 ```typescript
-// Before (lib 依赖 app):
+// Before (lib depends on app):
 import { useWorkspaceStore } from '@/app/workspace/stores';
 
-// After (app 注入给 lib):
+// After (app injects into lib):
 interface SyncStoreAdapter {
   setMessages: (msgs: Message[]) => void;
   setTasks: (tasks: Task[]) => void;
@@ -114,7 +114,7 @@ interface SyncStoreAdapter {
 function useAgentStore(adapter: SyncStoreAdapter) { ... }
 ```
 
-app 层调用时注入具体实现：
+The app layer injects the concrete implementation when calling:
 ```typescript
 // src/app/workspace/hooks/useWorkspaceAgent.ts
 const adapter = useMemo(() => ({
@@ -126,71 +126,71 @@ const adapter = useMemo(() => ({
 useAgentStore(adapter);
 ```
 
-#### Step 3: 提取 `ComponentStates` 类型到 `src/lib/sync/types.ts`
+#### Step 3: Extract `ComponentStates` type to `src/lib/sync/types.ts`
 
-`componentStateConfig.ts` 只需要类型，不需要运行时依赖。将 `ComponentStates` 类型定义移到 sync 模块自己的 types 中（或共享 types 层）。
+`componentStateConfig.ts` only needs the type, not a runtime dependency. Move the `ComponentStates` type definition to the sync module's own types (or to the shared types layer).
 
-### 1.3 重构后依赖图
+### 1.3 Post-Refactoring Dependency Graph
 
 ```
-src/types/          ← 共享类型（所有模块可引用）
+src/types/          ← shared types (all modules can reference)
     ↓
-src/lib/            ← 基础设施（services, sync, events）
+src/lib/            ← infrastructure (services, sync, events)
     ↓
-src/components/     ← 共享 UI 组件（editors, ui, agent）
+src/components/     ← shared UI components (editors, ui, agent)
     ↓
-src/app/            ← 页面逻辑（workspace, discovery, assets）
+src/app/            ← page logic (workspace, discovery, assets)
 ```
 
-无反向箭头。
+No reverse arrows.
 
 ---
 
-## 2. Workspace Store 拆分（Critical）
+## 2. Workspace Store Split (Critical)
 
-### 2.1 现状
+### 2.1 Current State
 
-`workspaceStore.ts`（1,239 行）是一个巨石 store，混杂了 11 个不同领域的状态：
+`workspaceStore.ts` (1,239 lines) is a monolithic store mixing 11 different domains of state:
 
-| 领域 | 字段数 | Actions 数 | 关联度 |
+| Domain | Field Count | Action Count | Coupling |
 |------|--------|-----------|--------|
-| Layout | 3 | 4 | 独立 |
-| Agent Instance | 3 | 5 | 独立 |
-| Chat/Messages | 2 | 5 | 与 sync 有关 |
-| Tasks | 2 | 4 | 与 sync 有关 |
-| Components/Window | 2 | 2 | 与 sync 有关 |
-| Timeline | 4 | 6 | 与 snapshot 有关 |
-| Snapshots | 1 | 3 | 与 timeline 有关 |
-| Demo Flow | 3 | 7 | 独立 |
-| Diff Viewer | 1 | 2 | 独立 |
-| Interactions | 1 | 2 | 与 demo 有关 |
-| Sync Session | 3+ | 10+ | 跨领域 |
+| Layout | 3 | 4 | Independent |
+| Agent Instance | 3 | 5 | Independent |
+| Chat/Messages | 2 | 5 | Related to sync |
+| Tasks | 2 | 4 | Related to sync |
+| Components/Window | 2 | 2 | Related to sync |
+| Timeline | 4 | 6 | Related to snapshot |
+| Snapshots | 1 | 3 | Related to timeline |
+| Demo Flow | 3 | 7 | Independent |
+| Diff Viewer | 1 | 2 | Independent |
+| Interactions | 1 | 2 | Related to demo |
+| Sync Session | 3+ | 10+ | Cross-domain |
 
-问题：
-- 任何一个领域的修改都可能影响其他领域（合并冲突、误触副作用）
-- 70+ actions 使得认知负担极高
-- 无法独立测试各领域逻辑
-- `reset()` 需要清除所有领域状态，容易遗漏新增字段
+Problems:
+- Modifications to any domain can affect other domains (merge conflicts, accidental side effects)
+- 70+ actions create an extremely high cognitive burden
+- Cannot independently test each domain's logic
+- `reset()` needs to clear all domain states, easily missing newly added fields
 
-### 2.2 方案：领域切片 (Domain Slices)
+### 2.2 Solution: Domain Slices
 
-拆分为 6 个独立 store，保留一个聚合 hook：
+Split into 6 independent stores, retaining an aggregation hook:
 
 ```
 src/app/workspace/stores/
-├── layoutStore.ts           ← chatExpanded, taskPanelHeight, chatPanelWidth (~ 60 行)
-├── chatStore.ts             ← messages, participants, addMessage, etc. (~ 150 行)
-├── taskStore.ts             ← tasks, activeTaskId, updateTask, etc. (~ 120 行)
-├── componentStore.ts        ← activeComponent, componentStates (~ 80 行)
-├── timelineStore.ts         ← timeline, position, playback, snapshots (~ 180 行)
-├── demoStore.ts             ← demoConfig, stepIndex, isDemoRunning, interactions (~ 120 行)
-├── agentInstanceStore.ts    ← id, status, error, start/stop (~ 100 行)
-├── syncActions.ts           ← setMessages, applyStateDelta 等跨 store 同步操作 (~ 150 行)
-├── index.ts                 ← 重新导出所有 store + 聚合 hooks
-└── types.ts                 ← 从 workspace/types.ts 提取 store 相关类型
+├── layoutStore.ts           ← chatExpanded, taskPanelHeight, chatPanelWidth (~ 60 lines)
+├── chatStore.ts             ← messages, participants, addMessage, etc. (~ 150 lines)
+├── taskStore.ts             ← tasks, activeTaskId, updateTask, etc. (~ 120 lines)
+├── componentStore.ts        ← activeComponent, componentStates (~ 80 lines)
+├── timelineStore.ts         ← timeline, position, playback, snapshots (~ 180 lines)
+├── demoStore.ts             ← demoConfig, stepIndex, isDemoRunning, interactions (~ 120 lines)
+├── agentInstanceStore.ts    ← id, status, error, start/stop (~ 100 lines)
+├── syncActions.ts           ← setMessages, applyStateDelta and other cross-store sync operations (~ 150 lines)
+├── index.ts                 ← re-export all stores + aggregation hooks
+└── types.ts                 ← store-related types extracted from workspace/types.ts
 ```
 
-#### 聚合 Hook（保持使用端零改动）
+#### Aggregation Hook (zero changes needed at consumption sites)
 
 ```typescript
 // src/app/workspace/stores/index.ts
@@ -199,7 +199,7 @@ export { useChatStore } from './chatStore';
 export { useTaskStore, useCurrentTask } from './taskStore';
 // ...
 
-// 兼容层：渐进迁移期间保留
+// Compatibility layer: retained during gradual migration
 export function useWorkspaceStore() {
   return {
     ...useLayoutStore(),
@@ -210,9 +210,9 @@ export function useWorkspaceStore() {
 }
 ```
 
-#### SyncActions（跨 store 协调）
+#### SyncActions (cross-store coordination)
 
-sync 相关的 actions（如 `applyStateDelta`）需要操作多个 store，抽取为独立模块：
+Sync-related actions (such as `applyStateDelta`) need to operate on multiple stores, extracted as an independent module:
 
 ```typescript
 // src/app/workspace/stores/syncActions.ts
@@ -224,135 +224,135 @@ export function applyStateDelta(delta: StateDelta) {
 }
 ```
 
-### 2.3 迁移策略
+### 2.3 Migration Strategy
 
-1. 先创建各领域 store 文件，从 workspaceStore.ts 逐个提取
-2. 保留 `useWorkspaceStore()` 聚合 hook 作为兼容层
-3. 逐个组件迁移到直接使用领域 store
-4. 全部迁移完成后删除聚合 hook
+1. First create each domain store file, extracting from workspaceStore.ts one by one
+2. Retain the `useWorkspaceStore()` aggregation hook as a compatibility layer
+3. Migrate components one by one to directly use domain stores
+4. Delete the aggregation hook after all migrations are complete
 
 ---
 
-## 3. 类型定义整合（High）
+## 3. Type Definition Consolidation (High)
 
-### 3.1 现状
+### 3.1 Current State
 
-类型定义分散在 11 个不同位置：
+Type definitions are scattered across 11 different locations:
 
-| 文件 | 行数 | 内容 |
+| File | Lines | Content |
 |------|------|------|
-| `src/app/workspace/types.ts` | 692 | Workspace 全部类型（50+ types） |
-| `src/components/editors/jupyter/types.ts` | 739 | Jupyter 类型 |
-| `src/components/editors/pdf-reader/type.ts` | ~100 | PDF Reader 类型 |
-| `src/components/editors/previews/code-playground/types.ts` | ~100 | CodePlayground 类型 |
-| `src/components/editors/previews/latex-agent/types.ts` | ~80 | LaTeX Agent 类型 |
-| `src/components/editors/previews/latex-templates/types.ts` | ~120 | LaTeX Templates 类型 |
-| `src/lib/sync/types.ts` | ~300 | Sync 协议类型 |
-| `src/lib/container/types.ts` | ~100 | Container 类型 |
-| `src/lib/storage/types.ts` | ~60 | Storage 类型 |
-| `src/types/block.ts` | ~50 | Block 类型 |
-| `src/types/paperContext.ts` | ~40 | Paper Context 类型 |
+| `src/app/workspace/types.ts` | 692 | All workspace types (50+ types) |
+| `src/components/editors/jupyter/types.ts` | 739 | Jupyter types |
+| `src/components/editors/pdf-reader/type.ts` | ~100 | PDF Reader types |
+| `src/components/editors/previews/code-playground/types.ts` | ~100 | CodePlayground types |
+| `src/components/editors/previews/latex-agent/types.ts` | ~80 | LaTeX Agent types |
+| `src/components/editors/previews/latex-templates/types.ts` | ~120 | LaTeX Templates types |
+| `src/lib/sync/types.ts` | ~300 | Sync protocol types |
+| `src/lib/container/types.ts` | ~100 | Container types |
+| `src/lib/storage/types.ts` | ~60 | Storage types |
+| `src/types/block.ts` | ~50 | Block types |
+| `src/types/paperContext.ts` | ~40 | Paper Context types |
 
-问题：
-- 命名不一致：`types.ts` vs `type.ts`
-- 找类型定义需要全局搜索
-- 跨模块共享的类型没有统一出口
-- workspace/types.ts 是 692 行的巨型文件
+Problems:
+- Inconsistent naming: `types.ts` vs `type.ts`
+- Finding type definitions requires global search
+- Cross-module shared types have no unified export
+- workspace/types.ts is a 692-line monolithic file
 
-### 3.2 方案
+### 3.2 Solution
 
-**原则：编辑器内部类型保持就近定义，跨模块共享类型提取到 `src/types/`。**
+**Principle: Keep editor-internal types co-located; extract cross-module shared types to `src/types/`.**
 
-#### 不动的（就近定义，模块内部使用）
-- `src/components/editors/jupyter/types.ts` — Jupyter 内部类型，只在 jupyter 内使用
-- `src/components/editors/pdf-reader/type.ts` → 重命名为 `types.ts`（统一命名）
-- `src/components/editors/previews/*/types.ts` — 各编辑器内部类型
-- `src/lib/container/types.ts` — container 内部类型
-- `src/lib/storage/types.ts` — storage 内部类型
+#### Not moving (co-located, used only within the module)
+- `src/components/editors/jupyter/types.ts` — Jupyter internal types, only used within jupyter
+- `src/components/editors/pdf-reader/type.ts` → rename to `types.ts` (consistent naming)
+- `src/components/editors/previews/*/types.ts` — each editor's internal types
+- `src/lib/container/types.ts` — container internal types
+- `src/lib/storage/types.ts` — storage internal types
 
-#### 要移动的（跨模块引用的共享类型）
+#### To be moved (shared types referenced across modules)
 
 ```
 src/types/
-├── workspace.ts         ← 从 app/workspace/types.ts 提取跨模块部分
+├── workspace.ts         ← extract cross-module parts from app/workspace/types.ts
 │                          (ComponentType, ComponentStates, UIDirective, etc.)
-├── sync.ts              ← 保留 lib/sync/types.ts（已经在正确位置，加 re-export）
-├── editor.ts            ← 编辑器共用的接口 (EditorProps, EditorState)
-├── message.ts           ← ExtendedChatMessage, Participant 等（chat + sync 共用）
-├── block.ts             ← 已有
-├── paperContext.ts       ← 已有
+├── sync.ts              ← keep lib/sync/types.ts (already in the correct location, add re-export)
+├── editor.ts            ← shared editor interfaces (EditorProps, EditorState)
+├── message.ts           ← ExtendedChatMessage, Participant, etc. (shared by chat + sync)
+├── block.ts             ← already exists
+├── paperContext.ts       ← already exists
 └── index.ts             ← barrel export
 ```
 
-#### 拆分 workspace/types.ts（692 行 → 多个文件）
+#### Splitting workspace/types.ts (692 lines → multiple files)
 
 ```
-当前 workspace/types.ts 包含：
-├── ComponentType enum + ComponentStates           → src/types/workspace.ts（跨模块）
-├── ExtendedChatMessage, Participant               → src/types/message.ts（跨模块）
-├── UIDirective, AgentAction, InteractiveComponent → src/types/workspace.ts（跨模块）
-├── Task, SubTask, TaskOutput                      → src/app/workspace/stores/types.ts（store 内部）
-├── DemoFlowConfig, DemoStep, DemoPhase            → src/app/workspace/mock/types.ts（demo 内部）
+Current workspace/types.ts contains:
+├── ComponentType enum + ComponentStates           → src/types/workspace.ts (cross-module)
+├── ExtendedChatMessage, Participant               → src/types/message.ts (cross-module)
+├── UIDirective, AgentAction, InteractiveComponent → src/types/workspace.ts (cross-module)
+├── Task, SubTask, TaskOutput                      → src/app/workspace/stores/types.ts (store-internal)
+├── DemoFlowConfig, DemoStep, DemoPhase            → src/app/workspace/mock/types.ts (demo-internal)
 ├── TimelineEvent, StateSnapshot                   → src/app/workspace/stores/types.ts
-└── Workspace interface                            → src/types/workspace.ts（跨模块）
+└── Workspace interface                            → src/types/workspace.ts (cross-module)
 ```
 
 ---
 
-## 4. API 路由标准化（High）
+## 4. API Route Standardization (High)
 
-### 4.1 现状
+### 4.1 Current State
 
-三套不同的模式在 API 路由中并存：
+Three different patterns coexist in API routes:
 
-**认证方式（3 种）：**
+**Authentication methods (3 types):**
 ```typescript
-// Pattern A: x-user-id header (10 个 v2 路由)
+// Pattern A: x-user-id header (10 v2 routes)
 function getUserId(request: NextRequest): number | null {
   const userIdHeader = request.headers.get('x-user-id');
   if (userIdHeader) return parseInt(userIdHeader, 10);
-  if (process.env.NODE_ENV === 'development') return 1;  // 硬编码
+  if (process.env.NODE_ENV === 'development') return 1;  // hardcoded
   return null;
 }
 
-// Pattern B: prisma.user.findFirst() (workspace 路由)
-const user = await prisma.user.findFirst();  // 取第一个用户
+// Pattern B: prisma.user.findFirst() (workspace routes)
+const user = await prisma.user.findFirst();  // gets the first user
 
-// Pattern C: 后端代理 (auth 路由)
+// Pattern C: backend proxy (auth routes)
 const res = await fetch(`${authApiBase}/auth/login`, { ... });
 ```
 
-**错误响应格式（3 种）：**
+**Error response formats (3 types):**
 ```typescript
 // Format A: { success: false, error: string }
 // Format B: { error: { code: number, msg: string } }
-// Format C: 无统一格式
+// Format C: no unified format
 ```
 
-### 4.2 方案
+### 4.2 Solution
 
-创建 API 工具层：
+Create an API utility layer:
 
 ```
 src/lib/api/
-├── middleware.ts        ← 认证提取、错误捕获
-├── response.ts          ← 统一响应格式工具函数
-├── validation.ts        ← Zod schema 验证工具
+├── middleware.ts        ← authentication extraction, error capture
+├── response.ts          ← unified response format utility functions
+├── validation.ts        ← Zod schema validation utilities
 └── index.ts
 ```
 
-#### 统一认证
+#### Unified Authentication
 
 ```typescript
 // src/lib/api/middleware.ts
 import { getServerSession } from 'next-auth';
 
 export async function getAuthUserId(req: NextRequest): Promise<string> {
-  // 优先 NextAuth session
+  // Prefer NextAuth session
   const session = await getServerSession(authOptions);
   if (session?.user?.id) return session.user.id;
 
-  // 开发模式降级
+  // Development mode fallback
   if (process.env.NODE_ENV === 'development') {
     const header = req.headers.get('x-user-id');
     if (header) return header;
@@ -363,7 +363,7 @@ export async function getAuthUserId(req: NextRequest): Promise<string> {
 }
 ```
 
-#### 统一响应
+#### Unified Response
 
 ```typescript
 // src/lib/api/response.ts
@@ -376,10 +376,10 @@ export function error(status: number, message: string) {
 }
 ```
 
-#### 使用示例
+#### Usage Example
 
 ```typescript
-// Before (每个路由自己处理):
+// Before (each route handles its own logic):
 export async function GET(req: NextRequest) {
   try {
     const userIdHeader = req.headers.get('x-user-id');
@@ -393,7 +393,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// After (thin route + 工具函数):
+// After (thin route + utility functions):
 export async function GET(req: NextRequest) {
   const userId = await getAuthUserId(req);
   const data = await service.list(userId);
@@ -401,25 +401,25 @@ export async function GET(req: NextRequest) {
 }
 ```
 
-错误捕获通过 Next.js 的 `route.ts` 外层 wrapper 或 try-catch 统一处理。
+Error capture is handled uniformly through Next.js `route.ts` outer wrapper or try-catch.
 
-### 4.3 迁移策略
+### 4.3 Migration Strategy
 
-1. 先创建 `src/lib/api/` 工具层
-2. 新的 workspace 路由（Phase 1）立刻使用新模式
-3. 逐步迁移现有 v2 路由（每次改一组，如 assets 相关 → collections 相关）
-4. 最后处理 legacy 路由
+1. First create the `src/lib/api/` utility layer
+2. New workspace routes (Phase 1) immediately use the new pattern
+3. Gradually migrate existing v2 routes (one group at a time, e.g., assets-related → collections-related)
+4. Handle legacy routes last
 
 ---
 
-## 5. Preview 组件解耦（Medium）
+## 5. Preview Component Decoupling (Medium)
 
-### 5.1 现状
+### 5.1 Current State
 
-9 个编辑器组件通过 `require()` hack 与 workspace 通信：
+9 editor components communicate with workspace via `require()` hack:
 
 ```typescript
-// 重复在 9 处的模式
+// Pattern repeated in 9 places
 try {
   const eventBusModule = require("@/app/workspace/lib/componentEventBus");
   eventBusModule.componentEventBus?.emit({
@@ -431,16 +431,16 @@ try {
 } catch { /* Not in workspace context */ }
 ```
 
-问题：
-- `require()` 是 CommonJS 模式，与 ESM 不兼容
-- 每处都 try-catch 同一段代码
-- 编辑器组件硬编码了 workspace 内部路径
+Problems:
+- `require()` is a CommonJS pattern, incompatible with ESM
+- Same try-catch code repeated at each location
+- Editor components hardcode workspace internal paths
 
-### 5.2 方案
+### 5.2 Solution
 
-**Step 1** 已在第 1 节覆盖（eventBus 移到 `src/lib/events/`），之后 require() hack 变为正常 import。
+**Step 1** is already covered in Section 1 (eventBus moved to `src/lib/events/`), after which the require() hack becomes a normal import.
 
-**Step 2** 创建编辑器通信 hook：
+**Step 2** Create an editor communication hook:
 
 ```typescript
 // src/lib/events/useEditorEvents.ts
@@ -460,223 +460,223 @@ export function useEditorEvents(componentType: string) {
 }
 ```
 
-编辑器组件使用：
+Editor component usage:
 ```typescript
-// Before (9 处重复):
+// Before (repeated in 9 places):
 try { require("@/app/workspace/lib/...").componentEventBus?.emit(...); } catch {}
 
-// After (1 行):
+// After (1 line):
 const { emit } = useEditorEvents('latex-editor');
 emit('content-changed', { content });
 ```
 
 ---
 
-## 6. Demo 数据分离（Medium）
+## 6. Demo Data Separation (Medium)
 
-### 6.1 现状
+### 6.1 Current State
 
 ```
 src/app/workspace/mock/
-├── vlaResearchDemo.ts      827 行
-├── vlaEnhancedDemo.ts      722 行
-├── demoFlowTypes.ts        ~200 行
+├── vlaResearchDemo.ts      827 lines
+├── vlaEnhancedDemo.ts      722 lines
+├── demoFlowTypes.ts        ~200 lines
 └── index.ts
 ```
 
-1,549 行的 demo 数据嵌入在生产代码路径中。
+1,549 lines of demo data embedded in the production code path.
 
-### 6.2 方案
+### 6.2 Solution
 
 ```
-src/app/workspace/mock/     → 保留 demoFlowTypes.ts（接口定义）
-src/__fixtures__/demos/      ← 移入具体 demo 数据
+src/app/workspace/mock/     → keep demoFlowTypes.ts (interface definitions)
+src/__fixtures__/demos/      ← move concrete demo data here
 ├── vlaResearchDemo.ts
 ├── vlaEnhancedDemo.ts
 └── index.ts
 ```
 
-`demoFlowTypes.ts` 定义接口留在 workspace/mock/ 中（它是 demo 系统的 API 契约）。具体数据（827 + 722 行）移到 fixtures 目录，只在 demo 模式下动态 import。
+`demoFlowTypes.ts` with its interface definitions stays in workspace/mock/ (it serves as the demo system's API contract). The concrete data (827 + 722 lines) moves to the fixtures directory, dynamically imported only in demo mode.
 
 ---
 
-## 7. 执行计划
+## 7. Execution Plan
 
-### 优先级排序
-
-```
-Phase A (结构基础，1-2 天)
- ├── A1. 提取 componentEventBus → src/lib/events/          ← 解除 9 处反向依赖
- ├── A2. 创建 src/lib/api/ 工具层                           ← 新路由立刻可用
- └── A3. 统一 type.ts → types.ts 命名                      ← 5 分钟的修复
-
-Phase B (Store 拆分，2-3 天)
- ├── B1. 创建 6 个领域 store 文件，从 workspaceStore 提取逻辑
- ├── B2. 创建 syncActions.ts 处理跨 store 协调
- ├── B3. 保留 useWorkspaceStore() 聚合兼容层
- └── B4. 逐个组件迁移到直接使用领域 store
-
-Phase C (类型整合，1 天)
- ├── C1. 拆分 workspace/types.ts (692行) → 按领域分文件
- ├── C2. 提取跨模块类型到 src/types/workspace.ts, message.ts
- └── C3. 解耦 lib/sync/ 对 app/workspace/types 的依赖
-
-Phase D (收尾清理，0.5 天)
- ├── D1. 解耦 useAgentStore 对 workspaceStore 的直接依赖
- ├── D2. Demo 数据移到 __fixtures__/
- ├── D3. 创建 useEditorEvents hook 替换 9 处 require() hack
- └── D4. 删除 workspaceStore.ts（兼容层迁移完成后）
-```
-
-### Phase 之间的依赖
+### Priority Ordering
 
 ```
-A1 ──→ D3 (eventBus 先移出，才能创建 useEditorEvents)
-A2 ──→ Phase 1 workspace 路由开发 (新路由用新 API 模式)
-B1-B3 ──→ B4 ──→ D4 (store 拆完 → 迁移组件 → 删旧 store)
-C2 ──→ C3 (共享类型先到位，才能解耦 sync)
+Phase A (Structural foundation, 1-2 days)
+ ├── A1. Extract componentEventBus → src/lib/events/          ← resolve 9 reverse dependencies
+ ├── A2. Create src/lib/api/ utility layer                     ← immediately usable for new routes
+ └── A3. Unify type.ts → types.ts naming                      ← 5-minute fix
+
+Phase B (Store split, 2-3 days)
+ ├── B1. Create 6 domain store files, extract logic from workspaceStore
+ ├── B2. Create syncActions.ts for cross-store coordination
+ ├── B3. Retain useWorkspaceStore() aggregation compatibility layer
+ └── B4. Migrate components one by one to directly use domain stores
+
+Phase C (Type consolidation, 1 day)
+ ├── C1. Split workspace/types.ts (692 lines) → separate files by domain
+ ├── C2. Extract cross-module types to src/types/workspace.ts, message.ts
+ └── C3. Decouple lib/sync/'s dependency on app/workspace/types
+
+Phase D (Final cleanup, 0.5 days)
+ ├── D1. Decouple useAgentStore's direct dependency on workspaceStore
+ ├── D2. Move demo data to __fixtures__/
+ ├── D3. Create useEditorEvents hook to replace 9 require() hacks
+ └── D4. Delete workspaceStore.ts (after compatibility layer migration is complete)
 ```
 
-### 风险控制
+### Dependencies Between Phases
 
-| 风险 | 缓解措施 |
+```
+A1 ──→ D3 (eventBus must be moved out first before creating useEditorEvents)
+A2 ──→ Phase 1 workspace route development (new routes use new API pattern)
+B1-B3 ──→ B4 ──→ D4 (split stores → migrate components → delete old store)
+C2 ──→ C3 (shared types must be in place before decoupling sync)
+```
+
+### Risk Mitigation
+
+| Risk | Mitigation |
 |------|----------|
-| Store 拆分期间功能回退 | 保留聚合 hook 作为兼容层，逐步迁移 |
-| 类型迁移导致大量 import 变更 | 使用 barrel export + 旧路径 re-export |
-| eventBus 移动影响编辑器功能 | 先移动 → 更新 import → 验证所有 8 个编辑器 |
-| API 工具层增加新模式混乱 | 新路由强制使用，旧路由不急于迁移 |
+| Feature regression during store split | Retain aggregation hook as compatibility layer, migrate gradually |
+| Type migration causing massive import changes | Use barrel export + re-export from old paths |
+| eventBus relocation breaking editor functionality | Move first → update imports → verify all 8 editors |
+| API utility layer adding new pattern confusion | Enforce for new routes, no rush to migrate old routes |
 
 ---
 
-## 8. 不动的（经分析确认良好的部分）
+## 8. Not Changing (Confirmed Good After Analysis)
 
-以下结构经分析确认**不需要重构**：
+The following structures were confirmed **not to need refactoring** after analysis:
 
-| 模块 | 行数 | 判断 | 原因 |
+| Module | Lines | Verdict | Reason |
 |------|------|------|------|
-| `src/lib/services/` | ~3,200 行 / 8 文件 | 良好 | 单一职责，清晰分层 |
-| `src/lib/sync/` (除依赖问题) | ~3,200 行 / 11 文件 | 良好 | 架构设计优秀，文档完善 |
-| `src/components/editors/pdf-reader/` | 82 文件 | 良好 | 自包含，hooks/services/stores 分层清晰 |
-| `src/components/editors/jupyter/` | 38 文件 | 良好 | 同上 |
-| `src/components/ui/` | 13 文件 | 良好 | 纯 UI 原语，无依赖违规 |
-| `src/app/global/` | 8 文件 | 良好 | Layout/UI Store 职责明确 |
-| `src/app/discovery/` | 15 文件 | 良好 | 独立页面模块 |
+| `src/lib/services/` | ~3,200 lines / 8 files | Good | Single responsibility, clear layering |
+| `src/lib/sync/` (except dependency issue) | ~3,200 lines / 11 files | Good | Excellent architectural design, well-documented |
+| `src/components/editors/pdf-reader/` | 82 files | Good | Self-contained, clear hooks/services/stores layering |
+| `src/components/editors/jupyter/` | 38 files | Good | Same as above |
+| `src/components/ui/` | 13 files | Good | Pure UI primitives, no dependency violations |
+| `src/app/global/` | 8 files | Good | Clear Layout/UI Store responsibilities |
+| `src/app/discovery/` | 15 files | Good | Independent page module |
 
-**编辑器内部不拆分**：LatexEditorPreview (1,657 行)、JupyterNotebook (1,101 行)、PDFReader (1,023 行) 虽然行数多，但它们各自封装了复杂的第三方库集成（CodeMirror、pdfjs、WebContainer），内部逻辑高度内聚。拆分反而会增加不必要的抽象。
+**Not splitting editor internals**: LatexEditorPreview (1,657 lines), JupyterNotebook (1,101 lines), PDFReader (1,023 lines) have high line counts, but each encapsulates complex third-party library integrations (CodeMirror, pdfjs, WebContainer) with highly cohesive internal logic. Splitting would only add unnecessary abstraction.
 
 ---
 
-## 9. 执行记录
+## 9. Execution Record
 
-### Phase A — 结构基础 ✅ (2026-02-15)
+### Phase A — Structural Foundation ✅ (2026-02-15)
 
-**A1. componentEventBus 提取** ✅
-- 创建 `src/lib/events/` (types.ts, componentEventBus.ts, hooks.ts, index.ts)
-- `ComponentType` 类型定义的规范位置移至 `src/lib/events/types.ts`
-- `src/app/workspace/lib/componentEventBus.ts` 改为 re-export shim
-- `src/app/workspace/types.ts` 的 `ComponentType` 改为从 `@/lib/events/types` re-export
-- 8 个编辑器文件的 `require()` hack 替换为正常 `import from '@/lib/events'`
-- 剩余 1 处 `require("@/app/workspace/stores/workspaceStore")` 在 PDFReaderPreview.tsx（Phase B/D 处理）
-- TypeScript 检查通过，lint 无新增错误
+**A1. componentEventBus extraction** ✅
+- Created `src/lib/events/` (types.ts, componentEventBus.ts, hooks.ts, index.ts)
+- Canonical location for `ComponentType` type definition moved to `src/lib/events/types.ts`
+- `src/app/workspace/lib/componentEventBus.ts` changed to re-export shim
+- `src/app/workspace/types.ts`'s `ComponentType` changed to re-export from `@/lib/events/types`
+- 8 editor files' `require()` hacks replaced with normal `import from '@/lib/events'`
+- Remaining 1 occurrence of `require("@/app/workspace/stores/workspaceStore")` in PDFReaderPreview.tsx (handled in Phase B/D)
+- TypeScript check passed, no new lint errors
 
-**A2. API 工具层** ✅
-- 创建 `src/lib/api/` (response.ts, auth.ts, index.ts)
+**A2. API utility layer** ✅
+- Created `src/lib/api/` (response.ts, auth.ts, index.ts)
 - `response.ts`: success(), error(), unauthorized(), notFound(), badRequest(), serverError()
 - `auth.ts`: getUserId() (numeric, for remote MySQL), getStringUserId() (string, for Prisma)
-- 新路由可立即使用 `import { success, getUserId } from '@/lib/api'`
+- New routes can immediately use `import { success, getUserId } from '@/lib/api'`
 
 **A3. type.ts → types.ts** ✅
 - `src/components/editors/pdf-reader/type.ts` → `types.ts`
-- 更新 1 处 import (pdf-reader/index.tsx)
+- Updated 1 import (pdf-reader/index.tsx)
 
-### Phase B — Store 拆分 ✅ (2026-02-15)
+### Phase B — Store Split ✅ (2026-02-15)
 
-**B1. 7 个领域 store 文件** ✅
-- `layoutStore.ts` (~80 行): chatExpanded, taskPanelHeight, chatPanelWidth, persist via `prismer-ws-layout`
-- `chatStore.ts` (~130 行): messages, participants, completedInteractions(Set), persist via `prismer-ws-chat`
-- `taskStore.ts` (~100 行): tasks, activeTaskId, updateSubtaskStatus(自动进度计算), persist via `prismer-ws-tasks`
-- `componentStore.ts` (~100 行): activeComponent, componentStates, activeDiff, persist via `prismer-ws-components`
-- `timelineStore.ts` (~150 行): timeline, playback, stateSnapshots, captureSnapshot/restoreSnapshot 跨 store
-- `demoStore.ts` (~130 行): demoConfig, currentDemoStepIndex, isDemoRunning, 与 chatStore/timelineStore 交互
-- `agentInstanceStore.ts` (~215 行): workspaceId, agentInstance 生命周期, syncSession, persist via `prismer-ws-agent`
+**B1. 7 domain store files** ✅
+- `layoutStore.ts` (~80 lines): chatExpanded, taskPanelHeight, chatPanelWidth, persist via `prismer-ws-layout`
+- `chatStore.ts` (~130 lines): messages, participants, completedInteractions(Set), persist via `prismer-ws-chat`
+- `taskStore.ts` (~100 lines): tasks, activeTaskId, updateSubtaskStatus (automatic progress calculation), persist via `prismer-ws-tasks`
+- `componentStore.ts` (~100 lines): activeComponent, componentStates, activeDiff, persist via `prismer-ws-components`
+- `timelineStore.ts` (~150 lines): timeline, playback, stateSnapshots, captureSnapshot/restoreSnapshot across stores
+- `demoStore.ts` (~130 lines): demoConfig, currentDemoStepIndex, isDemoRunning, interacts with chatStore/timelineStore
+- `agentInstanceStore.ts` (~215 lines): workspaceId, agentInstance lifecycle, syncSession, persist via `prismer-ws-agent`
 
-**B2. syncActions.ts 跨 store 协调** ✅
-- `executeDirective()` / `executeDirectives()` — UI 指令执行 (switch_component, load_document, highlight_diff 等)
-- `applyStateDelta()` — WebSocket state delta 分发到各领域 store
-- `loadWorkspace()` — REST API 并行拉取并填充所有 store
-- `sendMessage()` / `createTask()` — 乐观更新 + API 调用
-- `syncComponentState()` — 组件状态双向同步
-- `resetAllStores()` — 全 store 重置
+**B2. syncActions.ts cross-store coordination** ✅
+- `executeDirective()` / `executeDirectives()` — UI directive execution (switch_component, load_document, highlight_diff, etc.)
+- `applyStateDelta()` — WebSocket state delta dispatch to each domain store
+- `loadWorkspace()` — REST API parallel fetch and populate all stores
+- `sendMessage()` / `createTask()` — optimistic update + API call
+- `syncComponentState()` — bidirectional component state sync
+- `resetAllStores()` — full store reset
 
-**B3. 兼容层** ✅
-- `stores/index.ts` 提供 `useWorkspaceStore` 聚合 hook (marked `@deprecated`)
-- 支持 hook 选择器模式 `useWorkspaceStore(s => s.field)` + `.getState()` + `.subscribe()`
-- `workspaceStore.ts` 从 1,239 行改为 re-export shim (30 行)
+**B3. Compatibility layer** ✅
+- `stores/index.ts` provides `useWorkspaceStore` aggregation hook (marked `@deprecated`)
+- Supports hook selector pattern `useWorkspaceStore(s => s.field)` + `.getState()` + `.subscribe()`
+- `workspaceStore.ts` reduced from 1,239 lines to re-export shim (30 lines)
 
-**B4. 消费者迁移（关键 .setState() 调用）** ✅
-- `WorkspaceView.tsx`: 3 处 `useWorkspaceStore.setState({currentDemoStepIndex})` → `useDemoStore.setState()`
-- `WorkspaceView.tsx`: 2 处 `useWorkspaceStore.getState().setMessages/setCompletedInteractions` → `useChatStore.getState()`
-- `demoFlowController.ts`: 1 处 `.setState({currentDemoStepIndex})` → `useDemoStore.setState()`
-- TypeScript 检查通过，lint 无新增错误
-- 其余消费者通过 `.getState()` 聚合兼容层正常工作
+**B4. Consumer migration (critical .setState() calls)** ✅
+- `WorkspaceView.tsx`: 3 occurrences of `useWorkspaceStore.setState({currentDemoStepIndex})` → `useDemoStore.setState()`
+- `WorkspaceView.tsx`: 2 occurrences of `useWorkspaceStore.getState().setMessages/setCompletedInteractions` → `useChatStore.getState()`
+- `demoFlowController.ts`: 1 occurrence of `.setState({currentDemoStepIndex})` → `useDemoStore.setState()`
+- TypeScript check passed, no new lint errors
+- Remaining consumers work normally through the `.getState()` aggregation compatibility layer
 
-### Phase C — 类型定义整合 ✅ (2026-02-15)
+### Phase C — Type Definition Consolidation ✅ (2026-02-15)
 
-**C1. 拆分 workspace/types.ts** ✅
-- 原文件 692 行 → 123 行 (re-export hub + 4 个 workspace-local 类型)
-- 所有现有 `import from '../types'` 无需修改（re-export 层保证兼容）
+**C1. Split workspace/types.ts** ✅
+- Original file 692 lines → 123 lines (re-export hub + 4 workspace-local types)
+- All existing `import from '../types'` require no modification (re-export layer ensures compatibility)
 
-**C2. 跨模块类型提取到 src/types/** ✅
-- `src/types/task.ts` (~45 行): TaskStatus, SubTask, TaskOutput, Task
-- `src/types/message.ts` (~195 行): Participant*, ChatMessage, ExtendedChatMessage, InteractiveComponent*, UIDirective*, AgentAction*, AgentHandoff
-- `src/types/timeline.ts` (~80 行): TimelineEvent, ExtendedTimelineEvent, StateSnapshot, DiffChange, Highlight
-- `src/types/workspace.ts` (~195 行): ComponentStates + 8 组件状态接口, TaskPanelHeight, Workspace, AgentWorkflowState, AsyncOperation, DisabledComponentType
+**C2. Cross-module types extracted to src/types/** ✅
+- `src/types/task.ts` (~45 lines): TaskStatus, SubTask, TaskOutput, Task
+- `src/types/message.ts` (~195 lines): Participant*, ChatMessage, ExtendedChatMessage, InteractiveComponent*, UIDirective*, AgentAction*, AgentHandoff
+- `src/types/timeline.ts` (~80 lines): TimelineEvent, ExtendedTimelineEvent, StateSnapshot, DiffChange, Highlight
+- `src/types/workspace.ts` (~195 lines): ComponentStates + 8 component state interfaces, TaskPanelHeight, Workspace, AgentWorkflowState, AsyncOperation, DisabledComponentType
 - `src/types/index.ts` — barrel export
 
-**C3. 解耦 lib/sync/ 对 app/workspace/types 的依赖** ✅
+**C3. Decoupled lib/sync/'s dependency on app/workspace/types** ✅
 - `src/lib/sync/componentStateConfig.ts`: `import type { ComponentStates } from '@/app/workspace/types'` → `from '@/types/workspace'`
-- lib 层不再有任何 import 指向 app/workspace/types（ComponentType 已在 Phase A 移至 lib/events）
-- TypeScript 检查通过，lint 无新增错误
+- lib layer no longer has any imports pointing to app/workspace/types (ComponentType was already moved to lib/events in Phase A)
+- TypeScript check passed, no new lint errors
 
-### Phase D — 收尾清理 ✅ (2026-02-15)
+### Phase D — Final Cleanup ✅ (2026-02-15)
 
-**D1. 解耦 useAgentStore 对 workspaceStore 的依赖** ✅
-- `src/lib/sync/useAgentStore.ts` (265 行 → 删除) 移至 `src/app/workspace/hooks/useWorkspaceAgent.ts`
-- 新 hook 直接导入域 store (chatStore, taskStore, componentStore, timelineStore, agentInstanceStore)
-- `lib/sync/index.ts` 移除 useAgentStore/useDesktopAgent/useMobileAgent 导出
+**D1. Decoupled useAgentStore's dependency on workspaceStore** ✅
+- `src/lib/sync/useAgentStore.ts` (265 lines → deleted) moved to `src/app/workspace/hooks/useWorkspaceAgent.ts`
+- New hook directly imports domain stores (chatStore, taskStore, componentStore, timelineStore, agentInstanceStore)
+- `lib/sync/index.ts` removed useAgentStore/useDesktopAgent/useMobileAgent exports
 - `WorkspaceView.tsx`: `import { useDesktopAgent } from '../hooks/useWorkspaceAgent'`
 - `MobileChat.tsx`: `import { useMobileAgent } from '@/app/workspace/hooks/useWorkspaceAgent'`
-- **lib → app 反向依赖归零**
+- **lib → app reverse dependencies reduced to zero**
 
-**D2. Demo 数据移至 __fixtures__/** ✅
-- `src/app/workspace/mock/vlaResearchDemo.ts` (827 行) → `src/__fixtures__/demos/`
-- `src/app/workspace/mock/vlaEnhancedDemo.ts` (722 行) → `src/__fixtures__/demos/`
-- `src/app/workspace/mock/` 保留 demoFlowTypes.ts (接口定义) + index.ts
-- 消费者 import 路径更新为 `@/__fixtures__/demos/`
+**D2. Demo data moved to __fixtures__/** ✅
+- `src/app/workspace/mock/vlaResearchDemo.ts` (827 lines) → `src/__fixtures__/demos/`
+- `src/app/workspace/mock/vlaEnhancedDemo.ts` (722 lines) → `src/__fixtures__/demos/`
+- `src/app/workspace/mock/` retains demoFlowTypes.ts (interface definitions) + index.ts
+- Consumer import paths updated to `@/__fixtures__/demos/`
 
-**D3. createEditorEventEmitter — 统一编辑器事件发射** ✅
-- 创建 `src/lib/events/editorEvents.ts`: `createEditorEventEmitter(component)` 工厂函数
-- 自动组合 componentEventBus.emit + forwardComponentEvent
-- 替换 8 个编辑器文件中重复的 `emitComponentEvent` 函数:
+**D3. createEditorEventEmitter — unified editor event emission** ✅
+- Created `src/lib/events/editorEvents.ts`: `createEditorEventEmitter(component)` factory function
+- Automatically composes componentEventBus.emit + forwardComponentEvent
+- Replaced duplicate `emitComponentEvent` functions in 8 editor files:
   - AGGridPreview, LatexEditorPreview, CodePlayground, useWebContainer
   - JupyterNotebook, PDFReaderContent, useAIPaperReader, AskPaperChat
-- 每个文件减少 5-8 行胶水代码
+- Each file reduced by 5-8 lines of glue code
 
-**D4. 消除所有 require() hack** ✅
-- `PDFReaderPreview.tsx`: require() → `useComponentStore` 直接选择器
-- `CodePlaygroundPreview.tsx`: require() → `useComponentStore` 直接选择器
-- **生产代码中 require('@/app/workspace/...') 归零**（仅 dockerOrchestrator.ts 保留 `require('net')` — Node.js 内置模块）
+**D4. Eliminated all require() hacks** ✅
+- `PDFReaderPreview.tsx`: require() → `useComponentStore` direct selector
+- `CodePlaygroundPreview.tsx`: require() → `useComponentStore` direct selector
+- **Production code require('@/app/workspace/...') reduced to zero** (only dockerOrchestrator.ts retains `require('net')` — Node.js built-in module)
 
 ---
 
-## 10. 成功度量
+## 10. Success Metrics
 
-| 指标 | 重构前 | 重构后目标 | 实际结果 |
+| Metric | Before Refactoring | Target After Refactoring | Actual Result |
 |------|--------|-----------|----------|
-| 最大单文件 store 行数 | 1,239 | < 200 | ✅ 215 (agentInstanceStore) |
-| `require()` hack 数量 | 11 | 0 | ✅ 0 |
-| lib → app 反向依赖 | 2 | 0 | ✅ 0 |
-| components → app 反向依赖 | 9 | 0 | ✅ 2 (preview → componentStore, 合理的正向依赖) |
-| API 工具层 | 无 | 已创建 | ✅ src/lib/api/ |
-| workspace/types.ts 行数 | 692 | < 150 | ✅ 123 (re-export hub + 4 local types) |
-| Demo 数据位置 | app/workspace/mock/ | __fixtures__/ | ✅ 1,549 行已移出 |
+| Max single-file store line count | 1,239 | < 200 | ✅ 215 (agentInstanceStore) |
+| `require()` hack count | 11 | 0 | ✅ 0 |
+| lib → app reverse dependencies | 2 | 0 | ✅ 0 |
+| components → app reverse dependencies | 9 | 0 | ✅ 2 (preview → componentStore, reasonable forward dependency) |
+| API utility layer | None | Created | ✅ src/lib/api/ |
+| workspace/types.ts line count | 692 | < 150 | ✅ 123 (re-export hub + 4 local types) |
+| Demo data location | app/workspace/mock/ | __fixtures__/ | ✅ 1,549 lines moved out |

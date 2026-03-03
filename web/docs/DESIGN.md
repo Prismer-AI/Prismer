@@ -462,55 +462,56 @@ When sidebar is **collapsed**, the Cpu icon triggers the same dropdown on hover.
 └──────────────────────────────────────────────┘
 ```
 
-### 5.4 Public Workspace（公开工作空间）
+### 5.4 Public Workspace
 
-工作空间可以设为 Public，任何人（含未登录用户）可查看。
+Workspaces can be set to Public, allowing anyone (including unauthenticated users) to view them.
 
-**Workspace 头部增加公开控件：**
+**Workspace header with public visibility control:**
 
 ```
 ┌──────────────────────────────────────────────────────┐
 │ 📄 Meta-Analysis on LLM Reasoning          [Private ▾] │
 │     by @alice · ⭐ 127 · 🍴 34 · Updated 2h ago      │
 ├──────────────────────────────────────────────────────┤
-│ [Private ▾] 下拉：                                    │
-│   ○ Private — 仅自己和协作者可见                       │
-│   ○ Public  — 任何人可查看、Fork、评论                 │
-│   ○ Unlisted — 有链接可访问，不出现在 Discovery       │
+│ [Private ▾] dropdown:                                │
+│   ○ Private — Only you and collaborators can see     │
+│   ○ Public  — Anyone can view, Fork, and comment     │
+│   ○ Unlisted — Accessible via link, not shown in Discovery │
 └──────────────────────────────────────────────────────┘
 ```
 
-**Guest / Read-Only 视图（未登录 / 非 Owner）：**
+**Guest / Read-Only view (unauthenticated / non-Owner):**
 
 ```
 ┌──────────────────────────────────────────────────────┐
 │ Chat Panel (read-only)  │  WindowViewer (read-only)  │
 │ ┌────────────────────┐  │ ┌────────────────────────┐ │
 │ │ Message history     │  │ │ PDF / Jupyter / LaTeX  │ │
-│ │ (可滚动，不可发送)   │  │ │ (可查看，不可编辑)     │ │
+│ │ (scrollable, cannot │  │ │ (viewable, not         │ │
+│ │  send messages)     │  │ │  editable)             │ │
 │ │                    │  │ │                        │ │
-│ │ [登录后可评论]      │  │ │ Timeline (只读)        │ │
+│ │ [Log in to comment] │  │ │ Timeline (read-only)   │ │
 │ └────────────────────┘  │ └────────────────────────┘ │
 │ ┌────────────────────┐  │                            │
-│ │ ⭐ Star  🍴 Fork   │  │ [申请协作] [举报]         │
-│ │ 💬 Comment         │  │                            │
+│ │ ⭐ Star  🍴 Fork   │  │ [Request collaboration]    │
+│ │ 💬 Comment         │  │ [Report]                   │
 │ └────────────────────┘  │                            │
 └──────────────────────────────────────────────────────┘
 ```
 
-**社交交互：**
+**Social interactions:**
 
-| 操作 | 需要登录 | 说明 |
-|------|---------|------|
-| 查看 | 否 | 完整的 read-only 工作空间 |
-| Star | 是 | 收藏，影响 trending 排序 |
-| Fork | 是 | 复制为自己的 private workspace（含论文集、分析、草稿） |
-| Comment | 是 | 评论区在 Chat Panel 底部，与 Agent 对话分开 |
-| 申请协作 | 是 | Owner 审批后获得编辑权限 |
+| Action | Login required | Description |
+|--------|---------------|-------------|
+| View | No | Full read-only workspace |
+| Star | Yes | Bookmark; affects trending ranking |
+| Fork | Yes | Copy as your own private workspace (includes paper collection, analysis, drafts) |
+| Comment | Yes | Comment section at the bottom of Chat Panel, separate from Agent conversation |
+| Request collaboration | Yes | Owner approves to grant edit permissions |
 
-**Discovery 集成：**
+**Discovery integration:**
 
-Discovery 首页增加 "Trending Workspaces" 板块，与论文并列展示：
+The Discovery homepage adds a "Trending Workspaces" section, displayed alongside papers:
 
 ```
 Discovery

@@ -5,8 +5,8 @@
 > Help the next development phase with accurate status, gaps, and integration points.
 >
 > **Companion docs:**
-> - `docs/WINDOWVIEW_DESIGN.md` v2.0 — 产品设计（产物工作台、阶段式时间线、Agent 控制分层）
-> - `docs/WINDOWVIEW_CONVERGENCE.md` — 视觉统一 & 代码改进跟踪
+> - `docs/WINDOWVIEW_DESIGN.md` v2.0 — Product design (artifact workbench, phased timeline, Agent control layers)
+> - `docs/WINDOWVIEW_CONVERGENCE.md` — Visual unification & code improvement tracking
 >
 > **Milestone reference:** OpenClaw Agent Full Lifecycle merged to `develop` (2026-02-24).
 
@@ -58,19 +58,19 @@ The WindowViewer container uses `flex flex-col h-full`:
 
 ```
 ┌─────────────────────────────────────────────────┐
-│ ComponentTabs (一级 tab)              ~44px 固定  │
+│ ComponentTabs (primary tab)           ~44px fixed  │
 ├─────────────────────────────────────────────────┤
 │ Component Area (absolute inset-0)      flex-1    │
 │ ┌─────────────────────────────────────────────┐ │
-│ │ Component Toolbar (含二级选择器)  ~40px 固定  │ │
+│ │ Component Toolbar (w/ secondary selector) ~40px fixed │ │
 │ ├─────────────────────────────────────────────┤ │
-│ │ Component Body (编辑器/阅读器/画布)  flex-1  │ │
+│ │ Component Body (editor/reader/canvas)  flex-1  │ │
 │ ├─────────────────────────────────────────────┤ │
-│ │ Component Status Bar (可选)        ~32px    │ │
+│ │ Component Status Bar (optional)    ~32px    │ │
 │ └─────────────────────────────────────────────┘ │
 ├─────────────────────────────────────────────────┤
 │ Timeline                           ~44-280px    │
-│ (折叠 ~44px / 展开 ~280px)                       │
+│ (collapsed ~44px / expanded ~280px)               │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -89,20 +89,20 @@ Tab click → onComponentChange(type)
 
 ### Multi-Instance Readiness
 
-> **Design reference:** WINDOWVIEW_DESIGN.md v2.0 §3.2 — 每个工作台通过紧凑下拉选择器支持产物多实例
+> **Design reference:** WINDOWVIEW_DESIGN.md v2.0 §3.2 — Each workbench supports artifact multi-instance via compact dropdown selectors
 
 Current state: **only Reader has multi-instance** (`useMultiDocumentStore`). All other components are single-instance. The design calls for compact dropdown selectors (not tab bars) to avoid clashing with components' existing internal navigation.
 
 | Component | Multi-Instance Status | Existing Internal Nav | Selector Integration Strategy |
 |-----------|----------------------|----------------------|------------------------------|
-| Reader | Has `useMultiDocumentStore` | 顶部文档 tab 条 | 复用已有 tab 条，升级为产物实例管理 |
-| LaTeX | Single-instance | 文件 tab (main.tex, bib, sty) | 工程选择器（下拉）在文件 tab 上方 |
-| Code | Single-instance | 左侧 FileTree | 项目选择器（下拉）在工具栏左侧 |
-| Jupyter | Single-instance | 无 | 笔记本选择器（下拉）在工具栏左侧 |
-| Notes | Single-instance | 无 | 笔记选择器（下拉）在工具栏左侧 |
-| Data | Single-instance | 无 | 数据集选择器（下拉）在工具栏左侧 |
-| Gallery | Single-instance | Pack selector | 复用已有 pack selector |
-| 3D | Single-instance | Model selector | 复用已有 model selector |
+| Reader | Has `useMultiDocumentStore` | Top document tab bar | Reuse existing tab bar, upgrade to artifact instance management |
+| LaTeX | Single-instance | File tab (main.tex, bib, sty) | Project selector (dropdown) above file tab |
+| Code | Single-instance | Left FileTree | Project selector (dropdown) on toolbar left |
+| Jupyter | Single-instance | None | Notebook selector (dropdown) on toolbar left |
+| Notes | Single-instance | None | Note selector (dropdown) on toolbar left |
+| Data | Single-instance | None | Dataset selector (dropdown) on toolbar left |
+| Gallery | Single-instance | Pack selector | Reuse existing pack selector |
+| 3D | Single-instance | Model selector | Reuse existing model selector |
 
 ### Error Handling
 
@@ -148,7 +148,7 @@ Opening a paper from `/assets` doesn't route to workspace's PDF Reader. Opening 
 
 ```
 ┌──────────────────────────────────────────────┐
-│ AiEditor Toolbar (~40px, 横向滚动)            │
+│ AiEditor Toolbar (~40px, horizontal scroll)   │
 │ [B][I][U][H1..H6][List][Quote]...[AI tools]  │
 ├──────────────────────────────────────────────┤
 │                                              │
@@ -228,7 +228,7 @@ The container has its own LLM provider configured in `openclaw.json`, but Notes 
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│ TopBar (~44px) — 文档 tab 条 (multi-doc)                       │
+│ TopBar (~44px) — Document tab bar (multi-doc)                  │
 │ [Doc 1] [Doc 2] [+ Add]               [Search] [Settings]    │
 ├───────────────────────────────────────────────────────────────┤
 │ InlineToolbar (~50px) — Page nav + zoom + view mode            │
@@ -725,7 +725,7 @@ Option B: /api/container/{agentId}/jupyter/[...path] → container's Jupyter ser
 ┌──────────────────────────────────────────────────────┐
 │ Toolbar (~44px) — [Add Image] [Pack Selector] [Config]│
 ├──────────────────────────────────────────────────────┤
-│ Config Panel (可选展开, ~120px)                        │
+│ Config Panel (optional expand, ~120px)                 │
 │ — Layout / Columns / Gap / Aspect ratio controls      │
 ├──────────────────────────────────────────────────────┤
 │                                                      │
@@ -941,9 +941,9 @@ GET /api/v1/stats → {
 
 ### Workspace Plugin v0.5.0 — 26 Tools
 
-`docker/plugin/prismer-workspace/src/tools.ts` 提供 26 个 tool（原 12 基础 + 14 扩展），其中原 12 工具中 10 个自动发送 directive：
+`docker/plugin/prismer-workspace/src/tools.ts` provides 26 tools (original 12 base + 14 extended), of which 10 of the original 12 automatically send directives:
 
-| Tool | Auto-Directives | API 调用 | L1 测试 | L2 测试 |
+| Tool | Auto-Directives | API Call | L1 Test | L2 Test |
 |------|----------------|---------|--------|--------|
 | `latex_compile` | SWITCH_COMPONENT(latex-editor) + COMPILE_COMPLETE | `latex/compile` | ❌ | ❌ |
 | `jupyter_execute` | SWITCH_COMPONENT(jupyter-notebook) + CELL_RESULT | `jupyter/api/execute` | ✅ | ❌ |
@@ -958,11 +958,11 @@ GET /api/v1/stats → {
 | `save_artifact` | — (API only) | `/api/agents/{id}/artifacts` | ✅ | ❌ |
 | `update_gallery` | SWITCH_COMPONENT(bento-gallery) + UPDATE_GALLERY | `/api/agents/{id}/directive` | ✅ | ❌ |
 
-**L1** = `tests/layer1/*.spec.ts` API/基础设施验证 | **L2** = `tests/layer2/*.spec.ts` 前端渲染验证 | **L3** = `tests/layer3/*.spec.ts` 真实 Agent E2E
+**L1** = `tests/layer1/*.spec.ts` API/infrastructure verification | **L2** = `tests/layer2/*.spec.ts` frontend rendering verification | **L3** = `tests/layer3/*.spec.ts` real Agent E2E
 
-Content-producing skills auto-trigger SWITCH_COMPONENT + content directive as side-effect，Agent 不需要显式调用 `switch_component`，节省 token 并实现流畅 UI 转场。
+Content-producing skills auto-trigger SWITCH_COMPONENT + content directive as side-effect. Agent does not need to explicitly call `switch_component`, saving tokens and enabling smooth UI transitions.
 
-**测试体系**: Unit (8 files) + L1 (5 files, 21 tests) + L2 (7 files, 32 tests) + L3 (2 files, 6 tests) = 59+ tests。详见 `WINDOWVIEW_CONVERGENCE.md` §7。
+**Test system**: Unit (8 files) + L1 (5 files, 21 tests) + L2 (7 files, 32 tests) + L3 (2 files, 6 tests) = 59+ tests. See `WINDOWVIEW_CONVERGENCE.md` §7 for details.
 
 ---
 
@@ -1015,7 +1015,7 @@ Content-producing skills auto-trigger SWITCH_COMPONENT + content directive as si
 
 ## 13. Gap Summary Matrix
 
-### 13.1 组件集成状态
+### 13.1 Component Integration Status
 
 | Component | Container Integration | Backend Persistence | AI Gateway Unified | Agent Directives | Multi-Instance | Robustness |
 |-----------|----------------------|--------------------|--------------------|------------------|---------------|------------|
@@ -1030,11 +1030,11 @@ Content-producing skills auto-trigger SWITCH_COMPONENT + content directive as si
 
 **Legend:** None = no integration | Partial = some fields | Deep = full protocol | Minimal = 1-2 fields | **Has** = working multi-instance
 
-### 13.2 四层测试覆盖（per-component view）
+### 13.2 4-Layer Test Coverage (per-component view)
 
-> 参见 `WINDOWVIEW_CONVERGENCE.md` §7 了解 Unit/L1/L2/L3 定义
+> See `WINDOWVIEW_CONVERGENCE.md` §7 for Unit/L1/L2/L3 definitions
 
-| Component | Unit | L1 API 集成 | L2 前端渲染 | L3 E2E | 全链路 |
+| Component | Unit | L1 API Integration | L2 Frontend Rendering | L3 E2E | Full Chain |
 |-----------|------|------------|------------|--------|-------|
 | **Notes** (ai-editor) | ✅ store | ✅ bridge | ✅ t3-notes | ✅ mvp T3 | ✅ |
 | **Reader** (pdf-reader) | ❌ | ❌ | ✅ t4-pdf-reader | ❌ | ⚠️ |
@@ -1045,12 +1045,12 @@ Content-producing skills auto-trigger SWITCH_COMPONENT + content directive as si
 | **Gallery** (bento-gallery) | ❌ | ❌ | ✅ t2-jupyter | ❌ | ⚠️ |
 | **3D** (three-viewer) | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-**全链路 = L1 + L2 + L3 全部通过**
+**Full Chain = L1 + L2 + L3 all passing**
 
-**覆盖总结**:
-- 全链路验证: **4/8** 组件 (Notes, LaTeX, Data, Jupyter)
-- 至少 L2 覆盖: **7/8** 组件 (+ Reader, Code, Gallery)
-- 零覆盖: **1/8** 组件 (3D — 已禁用)
+**Coverage summary**:
+- Full chain verified: **4/8** components (Notes, LaTeX, Data, Jupyter)
+- At least L2 coverage: **7/8** components (+ Reader, Code, Gallery)
+- Zero coverage: **1/8** components (3D — disabled)
 
 ---
 
@@ -1058,24 +1058,24 @@ Content-producing skills auto-trigger SWITCH_COMPONENT + content directive as si
 
 > Aligned with WINDOWVIEW_DESIGN.md v3.0 design decisions.
 
-### P0: 产物工作台核心 (Design D2, D3)
+### P0: Artifact Workbench Core (Design D2, D3)
 
-1. **Artifact instance selector (二级导航)** — 每个工作台添加紧凑下拉选择器，支持产物多实例。Reader 复用已有 multi-doc，其他 7 个组件新增。参考 DESIGN §3.2 各组件整合策略表。
-2. **Workspace ↔ Collection 自动绑定** — Prisma schema 新增 `WorkspaceSession → Collection` FK。创建 Workspace 时自动创建同名 Collection。DESIGN §5.2。
-3. **Asset → WindowView 路由** — `openArtifactInWorkspace(assetId, assetType)` 统一入口，根据类型路由到对应工作台 + 创建实例。DESIGN §5.3。
+1. **Artifact instance selector (secondary navigation)** — Add compact dropdown selectors to each workbench for artifact multi-instance support. Reader reuses existing multi-doc; other 7 components add new selectors. See DESIGN §3.2 per-component integration strategy table.
+2. **Workspace ↔ Collection auto-binding** — Prisma schema adds `WorkspaceSession → Collection` FK. Creating a Workspace auto-creates a same-name Collection. DESIGN §5.2.
+3. **Asset → WindowView routing** — `openArtifactInWorkspace(assetId, assetType)` unified entry point, routes to the corresponding workbench by type + creates instance. DESIGN §5.3.
 4. **Backend persistence layer** — `PUT /api/workspace/{id}/component/{type}/state` API for all components.
 
-### P0: 容器集成 (Infrastructure)
+### P0: Container Integration (Infrastructure)
 
 5. **Container LaTeX compilation** — Switch from hardcoded macOS `pdflatex` to container's LaTeX service (`:8080`).
 6. **Script execution via container** — Route Code Playground's script mode to container's Jupyter kernel or OpenClaw execute endpoint.
 7. **Unify AI gateway** — Route Notes' AI features through `/api/ai/chat` with model-aware parameter normalization (reasoning model compatibility).
 
-### P1: 时间线 & Agent 控制 (Design D4, D6)
+### P1: Timeline & Agent Control (Design D4, D6)
 
-8. **Tag-based timeline** — 时间线重写为带 tag 的事件流 + 自适应密度 + tag 过滤。不预设阶段，Agent 通过 tag 组织事件。DESIGN §4.3。
-9. **Agent Intent Panel** — Chat 或 WindowView 顶部展示 Agent 当前意图、暂停/跳过/接管按钮。DESIGN §6.3。
-10. **Artifact lifecycle** — 产物状态机 `draft → review → approved → archived`，Agent 产出自动注册。DESIGN §3.4。
+8. **Tag-based timeline** — Rewrite timeline as tagged event stream + adaptive density + tag filtering. No preset phases; Agent organizes events via tags. DESIGN §4.3.
+9. **Agent Intent Panel** — Display Agent's current intent at the top of Chat or WindowView, with pause/skip/takeover buttons. DESIGN §6.3.
+10. **Artifact lifecycle** — Artifact state machine `draft → review → approved → archived`, Agent outputs auto-registered. DESIGN §3.4.
 
 ### P1: Component Gaps
 
@@ -1084,14 +1084,14 @@ Content-producing skills auto-trigger SWITCH_COMPONENT + content directive as si
 13. **Jupyter multi-notebook + `.ipynb` export** — Notebook list, standard format serialization.
 14. **AG Grid data pipeline** — Load data from container workspace files (CSV, JSON).
 
-### P1: 测试覆盖补齐 (四层测试体系)
+### P1: Test Coverage Gaps (4-Layer Test System)
 
-> 详见 `WINDOWVIEW_CONVERGENCE.md` §7 四层测试体系
+> See `WINDOWVIEW_CONVERGENCE.md` §7 for the 4-layer test system
 
-15. **Plugin 单测 (Unit)** — 为 `tools.ts` 26 个 tool 添加 vitest 测试，覆盖参数验证、directive 构建、错误路径。当前 0/26 覆盖。
-16. **v0.5.0 新增 tools L1 覆盖** — `tests/layer1/` 补充 latex_project, context_*, navigate_pdf, sync_files 等 12 个新 tool 的 API 集成测试。
-17. **L3 扩展** — `tests/layer3/` 补充 code_execute、latex_project_compile E2E 场景。当前仅 6 个测试。
-18. **3D Viewer 基础覆盖** — three-viewer 当前已禁用，启用后需补充 L2 渲染测试。
+15. **Plugin unit tests (Unit)** — Add vitest tests for all 26 tools in `tools.ts`, covering parameter validation, directive construction, and error paths. Currently 0/26 covered.
+16. **v0.5.0 new tools L1 coverage** — Add API integration tests in `tests/layer1/` for 12 new tools: latex_project, context_*, navigate_pdf, sync_files, etc.
+17. **L3 expansion** — Add code_execute, latex_project_compile E2E scenarios in `tests/layer3/`. Currently only 6 tests.
+18. **3D Viewer basic coverage** — three-viewer is currently disabled; add L2 rendering tests when re-enabled.
 
 ### P2: Polish & Robustness
 
@@ -1103,9 +1103,9 @@ Content-producing skills auto-trigger SWITCH_COMPONENT + content directive as si
 
 ### P3: Advanced (Design Reservations)
 
-25. **Sidecar Agent observation** — Intent-level, triggered by user comments/rejects. DESIGN §6.4. (设计预留)
-26. **Project layer** — Multi-workspace grouping. DESIGN §7.1. (设计预留)
-27. **Sub-Agent** — DESIGN §7.2. (设计预留，不实现)
-23. **Team** — DESIGN §7.3. (设想预留，不实现)
+25. **Sidecar Agent observation** — Intent-level, triggered by user comments/rejects. DESIGN §6.4. (design reservation)
+26. **Project layer** — Multi-workspace grouping. DESIGN §7.1. (design reservation)
+27. **Sub-Agent** — DESIGN §7.2. (design reservation, not implemented)
+23. **Team** — DESIGN §7.3. (design reservation, not implemented)
 24. **Jupyter environment management** — virtualenv/conda, kernel selection, package management.
 25. **Offline mode** — Queue operations when container unavailable, replay on reconnect.
