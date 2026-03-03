@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://learn.prismer.ai/">Learn</a> ·
   <a href="https://paper.prismer.ai/library">論文閲覧</a> ·
   <a href="https://docs.prismer.ai">ドキュメント</a> ·
   <a href="../roadmap.md">ロードマップ</a>
@@ -35,6 +36,15 @@
 ## 🚀 公開中のプロダクト
 
 <table>
+<tr>
+<td align="center">
+<a href="https://learn.prismer.ai/">
+<img src="https://img.shields.io/badge/🎓_Learn-今すぐ試す-blue?style=for-the-badge&labelColor=black" alt="Learn">
+</a>
+<br/>
+<sub>Prismer を効果的に使うための学習リソース</sub>
+</td>
+</tr>
 <tr>
 <td align="center">
 <a href="https://paper.prismer.ai/library">

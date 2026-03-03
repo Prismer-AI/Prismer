@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://learn.prismer.ai/">Learn</a> ·
   <a href="https://paper.prismer.ai/library">论文阅读</a> ·
   <a href="https://docs.prismer.ai">文档</a> ·
   <a href="../roadmap.md">路线图</a>
@@ -35,6 +36,15 @@
 ## 🚀 在线产品
 
 <table>
+<tr>
+<td align="center">
+<a href="https://learn.prismer.ai/">
+<img src="https://img.shields.io/badge/🎓_Learn-立即体验-blue?style=for-the-badge&labelColor=black" alt="Learn">
+</a>
+<br/>
+<sub>Prismer 使用课程与学习资源</sub>
+</td>
+</tr>
 <tr>
 <td align="center">
 <a href="https://paper.prismer.ai/library">

@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://learn.prismer.ai/">Learn</a> ·
   <a href="https://paper.prismer.ai/library">Paper-Leser</a> ·
   <a href="https://docs.prismer.ai">Dokumentation</a> ·
   <a href="../roadmap.md">Roadmap</a>
@@ -35,6 +36,15 @@
 ## 🚀 Live-Produkte
 
 <table>
+<tr>
+<td align="center">
+<a href="https://learn.prismer.ai/">
+<img src="https://img.shields.io/badge/🎓_Learn-Jetzt_testen-blue?style=for-the-badge&labelColor=black" alt="Learn">
+</a>
+<br/>
+<sub>Lernressourcen, um Prismer effizient zu nutzen</sub>
+</td>
+</tr>
 <tr>
 <td align="center">
 <a href="https://paper.prismer.ai/library">
