@@ -1,0 +1,12 @@
+# Default owners for everything
+* @willamhou
+
+# Frontend
+web/ @willamhou
+
+# Docker infrastructure
+docker/ @willamhou
+
+# Documentation
+docs/ @willamhou
+*.md @willamhou

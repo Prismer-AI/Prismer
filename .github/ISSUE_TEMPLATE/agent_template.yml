@@ -1,0 +1,63 @@
+name: Agent Template Proposal
+description: Propose a new agent personality template for a research domain
+labels: ["agent-template", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose a new agent template for a specific academic domain. See existing templates in `docker/templates/` for examples.
+
+  - type: input
+    id: domain
+    attributes:
+      label: Academic Domain
+      description: The research field this agent would specialize in
+      placeholder: e.g., bioinformatics, linguistics, physics
+    validations:
+      required: true
+
+  - type: textarea
+    id: identity
+    attributes:
+      label: Agent Identity
+      description: How should this agent behave? What's its expertise and personality?
+      placeholder: |
+        A bioinformatics researcher who specializes in genomic data analysis,
+        familiar with tools like BLAST, BioPython, and common file formats
+        (FASTA, VCF, BAM).
+    validations:
+      required: true
+
+  - type: textarea
+    id: skills
+    attributes:
+      label: Required Skills / Tools
+      description: What tools and skills should this agent have?
+      placeholder: |
+        - Sequence alignment (BLAST, Clustal)
+        - Gene expression analysis (DESeq2)
+        - Pathway analysis (KEGG, GO enrichment)
+        - Visualization (genome browsers, heatmaps)
+
+  - type: textarea
+    id: workflows
+    attributes:
+      label: Example Research Workflows
+      description: Describe 2-3 typical workflows this agent should support
+      placeholder: |
+        1. Analyze RNA-seq data → differential expression → pathway enrichment → paper figures
+        2. Compare protein sequences → structural prediction → write methods section
+
+  - type: dropdown
+    id: tools
+    attributes:
+      label: Container Tools Needed
+      description: What existing container services would this template use?
+      multiple: true
+      options:
+        - LaTeX (paper writing)
+        - Jupyter (notebooks)
+        - Python scientific stack
+        - R statistical computing
+        - Formal provers (Coq/Lean)
+        - Custom (describe below)

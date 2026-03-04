@@ -1,10 +1,6 @@
 FROM node:20-alpine AS base
 
-# Alpine 镜像源 + npm 阿里源
-RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories && \
-    npm config set registry https://registry.npmmirror.com
-
-# 安装依赖
+# Install dependencies
 FROM base AS deps
 WORKDIR /app
 
@@ -15,7 +11,7 @@ COPY prisma ./prisma
 
 RUN npm ci
 
-# 构建应用
+# Build application
 FROM base AS builder
 WORKDIR /app
 
@@ -38,7 +34,7 @@ RUN rm -rf node_modules/.cache
 RUN DATABASE_URL="file:/tmp/template.db" npx prisma db push --skip-generate \
     && cp /tmp/template.db .template.db
 
-# 生产环境
+# Production runtime
 FROM base AS runner
 WORKDIR /app
 
