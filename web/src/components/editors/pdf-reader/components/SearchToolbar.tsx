@@ -50,6 +50,13 @@ export const SearchToolbar: React.FC<SearchToolbarProps> = ({
     }, 300);
   }, [onSearchQueryChange]);
 
+  // Clear search
+  const handleClearSearch = useCallback(() => {
+    setInputValue('');
+    onClearSearch();
+    setIsExpanded(false);
+  }, [onClearSearch]);
+
   // Handle keyboard shortcuts
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -62,14 +69,7 @@ export const SearchToolbar: React.FC<SearchToolbarProps> = ({
     } else if (e.key === 'Escape') {
       handleClearSearch();
     }
-  }, [onGoToNextResult, onGoToPrevResult]);
-
-  // Clear search
-  const handleClearSearch = useCallback(() => {
-    setInputValue('');
-    onClearSearch();
-    setIsExpanded(false);
-  }, [onClearSearch]);
+  }, [onGoToNextResult, onGoToPrevResult, handleClearSearch]);
 
   // Toggle search bar expanded state
   const toggleExpanded = useCallback(() => {

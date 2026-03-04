@@ -368,9 +368,8 @@ export class ArtifactManager {
     // Dynamically import jszip (optional dependency)
     let JSZipClass: ZipLikeConstructor;
     try {
-      // @ts-expect-error - jszip is an optional dependency
-      const module = await import(/* webpackIgnore: true */ 'jszip');
-      JSZipClass = module.default || module;
+      const jszip = await import(/* webpackIgnore: true */ 'jszip');
+      JSZipClass = jszip.default || jszip;
     } catch {
       throw new Error('jszip not installed. Run: npm install jszip');
     }

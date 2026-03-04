@@ -164,31 +164,6 @@ const ObjectOverlay: React.FC<ObjectOverlayProps> = ({
   onExtract,
   onZoom,
 }) => {
-  const box = detection.boxes[0];
-  if (!box) return null;
-
-  const config = LABEL_CONFIG[detection.label] || LABEL_CONFIG.image;
-  
-  // OCR pixel coordinates -> PDF page coordinates -> screen coordinates
-  // OCR image dimensions (e.g., 1224x1584 at 144 DPI) -> PDF page dimensions (e.g., 612x792 at 72 DPI)
-  const ocrWidth = ocrImageWidth || 1224; // Default value
-  const ocrHeight = ocrImageHeight || 1584;
-  
-  // Conversion ratio: convert OCR pixel coordinates to PDF page coordinates
-  const scaleX = pageWidth / ocrWidth;
-  const scaleY = pageHeight / ocrHeight;
-  
-  // Use OCR pixel coordinates, convert to PDF page coordinates, then multiply by render scale
-  const ocrX1 = box.x1_px ?? box.x1;
-  const ocrY1 = box.y1_px ?? box.y1;
-  const ocrX2 = box.x2_px ?? box.x2;
-  const ocrY2 = box.y2_px ?? box.y2;
-  
-  const left = ocrX1 * scaleX * scale;
-  const top = ocrY1 * scaleY * scale;
-  const width = (ocrX2 - ocrX1) * scaleX * scale;
-  const height = (ocrY2 - ocrY1) * scaleY * scale;
-  
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onClick({ x: e.clientX, y: e.clientY });
@@ -198,6 +173,31 @@ const ObjectOverlay: React.FC<ObjectOverlayProps> = ({
     e.stopPropagation();
     onExplain();
   }, [onExplain]);
+
+  const box = detection.boxes[0];
+  if (!box) return null;
+
+  const config = LABEL_CONFIG[detection.label] || LABEL_CONFIG.image;
+
+  // OCR pixel coordinates -> PDF page coordinates -> screen coordinates
+  // OCR image dimensions (e.g., 1224x1584 at 144 DPI) -> PDF page dimensions (e.g., 612x792 at 72 DPI)
+  const ocrWidth = ocrImageWidth || 1224; // Default value
+  const ocrHeight = ocrImageHeight || 1584;
+
+  // Conversion ratio: convert OCR pixel coordinates to PDF page coordinates
+  const scaleX = pageWidth / ocrWidth;
+  const scaleY = pageHeight / ocrHeight;
+
+  // Use OCR pixel coordinates, convert to PDF page coordinates, then multiply by render scale
+  const ocrX1 = box.x1_px ?? box.x1;
+  const ocrY1 = box.y1_px ?? box.y1;
+  const ocrX2 = box.x2_px ?? box.x2;
+  const ocrY2 = box.y2_px ?? box.y2;
+
+  const left = ocrX1 * scaleX * scale;
+  const top = ocrY1 * scaleY * scale;
+  const width = (ocrX2 - ocrX1) * scaleX * scale;
+  const height = (ocrY2 - ocrY1) * scaleY * scale;
 
   // Get a very light fill color (only for isSelected state)
   const getLightBgColor = () => {

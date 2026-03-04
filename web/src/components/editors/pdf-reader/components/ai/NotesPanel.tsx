@@ -204,8 +204,6 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
       try {
         // Dynamic import for AiEditor
         const { AiEditor } = await import("aieditor");
-        // Import styles - ignore type error as this is a CSS file
-        // @ts-expect-error - CSS import has no type declarations
         await import("aieditor/dist/style.css");
 
         if (!mounted || !containerRef.current) return;

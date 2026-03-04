@@ -332,7 +332,6 @@ export class ExecutionManager {
       }
 
       const outputs: Output[] = [];
-      let timeoutId: NodeJS.Timeout | undefined;
 
       const handle = this.jupyterService.execute(task.cellId, task.code);
 
@@ -343,7 +342,7 @@ export class ExecutionManager {
       });
 
       // Set timeout
-      timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         handle.cancel();
         task.status = 'timeout';
         resolve({

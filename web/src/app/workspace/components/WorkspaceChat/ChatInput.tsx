@@ -258,6 +258,23 @@ export const ChatInput = memo(function ChatInput({
     inputRef.current?.focus();
   }, []);
 
+  // Submit
+  const handleSubmit = useCallback((e?: React.FormEvent) => {
+    e?.preventDefault();
+    const trimmed = value.trim();
+    if (trimmed && !disabled) {
+      onSend(
+        trimmed,
+        mentions.length > 0 ? mentions : undefined,
+        references.length > 0 ? references : undefined
+      );
+      setValue('');
+      setMentions([]);
+      setReferences([]);
+      inputRef.current?.focus();
+    }
+  }, [value, disabled, onSend, mentions, references]);
+
   // Keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     // Mention list navigation (@)
@@ -311,24 +328,7 @@ export const ChatInput = memo(function ChatInput({
       e.preventDefault();
       handleSubmit();
     }
-  }, [showMentions, showReferences, filteredParticipants, filteredMaterials, mentionIndex, referenceIndex, insertMention, insertReference]);
-
-  // Submit
-  const handleSubmit = useCallback((e?: React.FormEvent) => {
-    e?.preventDefault();
-    const trimmed = value.trim();
-    if (trimmed && !disabled) {
-      onSend(
-        trimmed, 
-        mentions.length > 0 ? mentions : undefined,
-        references.length > 0 ? references : undefined
-      );
-      setValue('');
-      setMentions([]);
-      setReferences([]);
-      inputRef.current?.focus();
-    }
-  }, [value, disabled, onSend, mentions, references]);
+  }, [showMentions, showReferences, filteredParticipants, filteredMaterials, mentionIndex, referenceIndex, insertMention, insertReference, handleSubmit]);
 
   // Close on outside click
   useEffect(() => {

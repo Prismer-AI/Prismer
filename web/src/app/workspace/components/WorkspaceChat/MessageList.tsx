@@ -580,6 +580,10 @@ export const MessageList = memo(function MessageList({
     prevLengthRef.current = messages.length;
   }, [messages.length, isAgentThinking]);
 
+  const handleExitHistory = useCallback(() => {
+    useTimelineStore.getState().exitHistoryView();
+  }, []);
+
   if (messages.length === 0 && !isAgentThinking) {
     return (
       <div className={`flex flex-col items-center justify-center text-slate-400 gap-4 ${className}`}>
@@ -602,10 +606,6 @@ export const MessageList = memo(function MessageList({
       </div>
     );
   }
-
-  const handleExitHistory = useCallback(() => {
-    useTimelineStore.getState().exitHistoryView();
-  }, []);
 
   return (
     <div

@@ -13,6 +13,12 @@ const eslintConfig = defineConfig([
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+      // React Compiler optimization hints — not bugs, fix incrementally
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/preserve-manual-memoization": "warn",
+      "react-hooks/use-memo": "warn",
+      "react-hooks/refs": "warn",
+      "react-hooks/hooks": "warn",
     },
   },
   // Override default ignores of eslint-config-next.
