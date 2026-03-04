@@ -26,7 +26,9 @@
     "test:layer2": "playwright test --project=layer2",
     "test:layer3": "playwright test --project=layer3",
     "test:e2e": "playwright test",
-    "test:report": "playwright show-report tests/output/reports"
+    "test:report": "playwright show-report tests/output/reports",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.966.0",
@@ -107,6 +109,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "jsdom": "^27.0.1",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.6.14",
     "prisma": "^6.19.1",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",

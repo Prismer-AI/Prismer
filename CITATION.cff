@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use Prismer.AI in your research, please cite it."
+title: "Prismer.AI: An Open-Source Multi-Agent Academic Research Platform"
+type: software
+authors:
+  - name: "Prismer.AI Team"
+license: Apache-2.0
+repository-code: "https://github.com/Prismer-AI/Prismer"
+url: "https://prismer.ai"
+keywords:
+  - academic research
+  - multi-agent AI
+  - LaTeX
+  - Jupyter
+  - PDF reader
+  - paper writing
+  - citation verification
+  - open source
+abstract: >-
+  Prismer.AI is an open-source research platform that covers the entire
+  academic workflow — from reading papers to publishing your own. It integrates
+  AI-native PDF reading, LaTeX editing, Jupyter notebooks, citation verification,
+  and multi-agent orchestration in a self-hosted workspace.

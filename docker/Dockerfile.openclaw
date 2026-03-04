@@ -4,15 +4,15 @@
 #
 # Layer 2: OpenClaw Agent on Academic Base Image
 #
-# 添加:
+# Adds:
 #   - OpenClaw runtime (npm global)
-#   - Prismer IM 通道插件
-#   - Prismer Workspace 插件 v0.5.0 (26 tools)
-#   - 学术 Agent 配置 + 角色模板
-#   - 容器统一服务网关 (Container Gateway v1.1.0)
-#   - Workspace 引导脚本 (bootstrap-workspace.sh)
+#   - Prismer IM channel plugin
+#   - Prismer Workspace plugin v0.5.0 (26 tools)
+#   - Academic agent config + role templates
+#   - Container Gateway v1.1.0
+#   - Workspace bootstrap script
 #
-# 构建:
+# Build:
 #   docker build -f Dockerfile.openclaw \
 #     --build-arg BASE_IMAGE=prismer-academic:v5.0 \
 #     -t docker.prismer.dev/prismer-academic:v5.0-openclaw .
@@ -23,26 +23,23 @@ ARG BASE_IMAGE=prismer-academic:v5.0
 
 FROM ${BASE_IMAGE}
 
-# ─── 安装 OpenClaw + 配置 (root) ──────────────────────────────
+# ─── Install OpenClaw + config (root) ─────────────────────────
 USER root
 
-# 创建 user 用户
+# Create non-root user
 RUN groupadd -r user && useradd -r -g user -m -s /bin/bash user
-
-# npm 阿里源
-RUN npm config set registry https://registry.npmmirror.com
 
 # Install OpenClaw globally
 RUN npm install -g openclaw@latest
 
-# ─── 复制 Prismer 插件 ─────────────────────────────────────────
+# ─── Copy Prismer plugins ────────────────────────────────────
 COPY plugin/prismer-im /opt/prismer/plugins/prismer-im
 COPY plugin/prismer-workspace /opt/prismer/plugins/prismer-workspace
 
 # Install runtime deps required by plugins
 RUN cd /opt/prismer/plugins/prismer-im && npm install --omit=dev
 
-# ─── 复制配置、模板、技能 ────────────────────────────────────────
+# ─── Copy config, templates, and skills ──────────────────────
 COPY config/openclaw.json /opt/prismer/config/openclaw.json
 COPY config/workspace/skills/ /opt/prismer/config/skills/
 COPY templates/ /opt/prismer/templates/
@@ -56,13 +53,13 @@ RUN chmod +x /opt/prismer/scripts/bootstrap-workspace.sh \
     /home/user/.local/bin/prover-server.py \
     /home/user/.local/bin/arxiv-server.py
 
-# ─── 复制容器网关 ──────────────────────────────────────────────
+# ─── Copy container gateway ──────────────────────────────────
 COPY gateway/ /app/gateway/
 
-# ─── 复制版本清单 ──────────────────────────────────────────────
+# ─── Copy version manifest ───────────────────────────────────
 COPY versions-manifest.json /opt/prismer/versions.json
 
-# ─── 权限 ─────────────────────────────────────────────────────
+# ─── Permissions ─────────────────────────────────────────────
 RUN mkdir -p /var/log/openclaw /workspace \
     /home/user/cache/latex /home/user/cache/provers /home/user/cache/pip \
     /home/user/output/proofs /home/user/output/charts /home/user/output/data \
@@ -73,11 +70,11 @@ RUN mkdir -p /var/log/openclaw /workspace \
     chown -R user:user /opt/prismer /var/log/openclaw /workspace \
     /home/user/cache /home/user/output /home/user/.local /home/user/.config
 
-# ─── 入口脚本 ─────────────────────────────────────────────────
+# ─── Entrypoint ──────────────────────────────────────────────
 COPY docker-entrypoint-openclaw.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# ─── 配置 OpenClaw (user) ─────────────────────────────────────
+# ─── Configure OpenClaw (user) ───────────────────────────────
 USER user
 
 RUN mkdir -p /home/user/.openclaw && \
@@ -90,7 +87,7 @@ RUN mkdir -p /home/user/.openclaw/.openclaw && \
 RUN mkdir -p /home/user/.openclaw/workspace/skills && \
     cp -r /opt/prismer/config/skills/* /home/user/.openclaw/workspace/skills/ 2>/dev/null || true
 
-# ─── 工作目录 ─────────────────────────────────────────────────
+# ─── Working directory ───────────────────────────────────────
 WORKDIR /workspace
 
 EXPOSE 3000

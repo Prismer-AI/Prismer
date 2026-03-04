@@ -1,0 +1,63 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe your idea below.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: What problem does this feature solve? What's your research workflow?
+      placeholder: I'm trying to... but currently...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Other approaches you've thought about
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of Prismer would this affect?
+      options:
+        - Web UI (workspace)
+        - Paper Reader
+        - LaTeX Editor
+        - Jupyter Notebooks
+        - Docker / Container
+        - Agent / OpenClaw
+        - Agent Templates
+        - API / SDK
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Primary Audience
+      description: Who would benefit most?
+      options:
+        - Individual researcher
+        - Research lab / team
+        - Course instructor
+        - Student
+        - Developer / contributor
+        - Other
