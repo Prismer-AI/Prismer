@@ -368,7 +368,7 @@ export class ArtifactManager {
     // Dynamically import jszip (optional dependency)
     let JSZipClass: ZipLikeConstructor;
     try {
-      // @ts-ignore - jszip is an optional dependency
+      // @ts-expect-error - jszip is an optional dependency
       const module = await import(/* webpackIgnore: true */ 'jszip');
       JSZipClass = module.default || module;
     } catch {

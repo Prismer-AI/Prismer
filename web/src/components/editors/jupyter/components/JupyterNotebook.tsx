@@ -424,7 +424,7 @@ export function JupyterNotebook({
         await new Promise(r => setTimeout(r, 500));
         
         // Check if we need to connect
-        let currentStatus = useNotebookStore.getState().kernelStatus;
+        const currentStatus = useNotebookStore.getState().kernelStatus;
         console.log('[Jupyter] Initial kernel status:', currentStatus);
         
         if (currentStatus === 'disconnected') {

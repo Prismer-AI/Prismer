@@ -110,7 +110,7 @@ function parseReferenceText(id: string, text: string): ParsedReference | null {
   };
   
   // Remove reference numbers [1], [2], etc.
-  let cleanText = text.replace(/^\s*\[\d+\]\s*/, '').trim();
+  const cleanText = text.replace(/^\s*\[\d+\]\s*/, '').trim();
   
   // Extract arXiv ID (format: arXiv:YYMM.NNNNN or arXiv preprint arXiv:YYMM.NNNNN)
   const arxivMatch = cleanText.match(/arXiv(?:\s*preprint\s*arXiv)?[:\s]*(\d{4}\.\d{4,5}(?:v\d+)?)/i);

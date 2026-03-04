@@ -114,7 +114,7 @@ const ReferenceCard: React.FC<ReferenceCardProps> = ({
     }
     // 3. 从 rawText 中提取
     if (reference.rawText) {
-      let text = reference.rawText.replace(/^\s*\[\d+\]\s*/, '');
+      const text = reference.rawText.replace(/^\s*\[\d+\]\s*/, '');
       // 尝试提取到括号年份之前的内容
       const beforeYear = text.match(/^(.+?)\s*\(\d{4}\)/);
       if (beforeYear) {

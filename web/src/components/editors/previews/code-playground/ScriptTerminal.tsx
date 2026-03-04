@@ -336,7 +336,7 @@ export const ScriptTerminal = forwardRef<ScriptTerminalHandle, ScriptTerminalPro
           const printMatch = printMatches.find(m => m);
 
           if (printMatch) {
-            let output = printMatch[1]
+            const output = printMatch[1]
               .replace(/\{[^}]+\}/g, () => Math.random().toFixed(1))
               .replace(/\\n/g, '\n');
             addLog(output);

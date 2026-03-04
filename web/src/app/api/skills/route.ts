@@ -281,7 +281,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20', 10);
 
     // Resolve installed skill IDs for this agent (agentId or workspaceId)
-    let installedIds = new Set<string>();
+    const installedIds = new Set<string>();
     if (agentIdParam || workspaceIdParam) {
       const prisma = (await import('@/lib/prisma')).default;
       const agent = agentIdParam

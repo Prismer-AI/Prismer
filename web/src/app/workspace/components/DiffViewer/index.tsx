@@ -288,7 +288,7 @@ export const InlineDiffHighlight = memo(function InlineDiffHighlight({
     while (i < oldContent.length || j < newContent.length) {
       if (i < oldContent.length && j < newContent.length && oldContent[i] === newContent[j]) {
         // Same characters
-        let sameStart = i;
+        const sameStart = i;
         while (i < oldContent.length && j < newContent.length && oldContent[i] === newContent[j]) {
           i++;
           j++;
