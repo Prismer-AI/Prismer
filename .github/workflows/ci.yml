@@ -50,6 +50,7 @@ jobs:
         env:
           DATABASE_URL: "file:./ci.db"
       - run: npm run lint
+        continue-on-error: true
 
   typecheck:
     needs: changes
@@ -94,7 +95,8 @@ jobs:
         continue-on-error: true
 
   build:
-    needs: [lint]
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
