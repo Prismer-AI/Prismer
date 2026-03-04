@@ -187,13 +187,6 @@ export const usePDFStore = create<PDFState & PDFActions>()(
       // Reset state
       reset: () => set(initialState),
     }),
-    {
-      name: 'pdf-store',
-      partialize: (state: PDFState) => ({
-        scale: state.scale,
-        rotation: state.rotation,
-        annotations: state.annotations,
-      }),
-    }
+    { name: 'pdf-store' }
   )
 ); 
