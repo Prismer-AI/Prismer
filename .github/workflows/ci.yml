@@ -47,6 +47,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npx prisma generate
+        env:
+          DATABASE_URL: "file:./ci.db"
       - run: npm run lint
 
   typecheck:
@@ -65,6 +67,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npx prisma generate
+        env:
+          DATABASE_URL: "file:./ci.db"
       - run: npx tsc --noEmit
         continue-on-error: true
 
@@ -84,6 +88,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npx prisma generate
+        env:
+          DATABASE_URL: "file:./ci.db"
       - run: npm test
         continue-on-error: true
 
