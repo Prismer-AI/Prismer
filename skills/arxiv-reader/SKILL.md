@@ -9,7 +9,12 @@ Read and analyze arXiv papers directly from the workspace. Converts LaTeX source
 
 ## Description
 
-This skill wraps the container's arXiv server (port 8082) which uses the `arxiv-to-prompt` library. It downloads arXiv paper source, flattens LaTeX includes, and returns clean text. Results are cached at `/workspace/.cache/arxiv/` for fast repeat access.
+This skill fetches arXiv papers, flattens LaTeX includes, and returns clean text. It works in two modes:
+
+- **Standalone mode** (default): Downloads directly from arXiv using Node.js built-ins. No Docker or Python required.
+- **Container mode**: Delegates to the arXiv server (port 8082) if available, for faster processing.
+
+Results are cached locally (`~/.cache/arxiv-reader/` in standalone, `/workspace/.cache/arxiv/` in container) for fast repeat access.
 
 ## Usage Examples
 
@@ -74,6 +79,7 @@ Extract just the abstract from an arXiv paper.
 ## Notes
 
 - All results are cached locally — repeat requests are instant
-- The arXiv server must be running inside the container (port 8082)
+- Works standalone (no Docker required) or with the container arXiv server
 - Paper IDs support version suffixes (e.g. `2301.00001v2`)
 - Very large papers may take 10-30 seconds on first fetch
+- `arxiv_abstract` uses the arXiv Atom API for fast metadata retrieval in standalone mode
