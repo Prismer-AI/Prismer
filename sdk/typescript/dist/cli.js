@@ -457,6 +457,657 @@ var RealtimeSSEClient = class extends TypedEmitter {
   }
 };
 
+// src/offline.ts
+var OfflineEmitter = class {
+  constructor() {
+    this.listeners = /* @__PURE__ */ new Map();
+  }
+  on(event, cb) {
+    if (!this.listeners.has(event)) this.listeners.set(event, /* @__PURE__ */ new Set());
+    this.listeners.get(event).add(cb);
+    return this;
+  }
+  off(event, cb) {
+    this.listeners.get(event)?.delete(cb);
+    return this;
+  }
+  emit(event, payload) {
+    const set = this.listeners.get(event);
+    if (set) for (const cb of set) {
+      try {
+        cb(payload);
+      } catch {
+      }
+    }
+  }
+  removeAllListeners() {
+    this.listeners.clear();
+  }
+};
+function generateId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    return (c === "x" ? r : r & 3 | 8).toString(16);
+  });
+}
+var WRITE_PATTERNS = [
+  { method: "POST", pattern: /\/api\/im\/(messages|direct|groups)\//, opType: "message.send" },
+  { method: "PATCH", pattern: /\/api\/im\/messages\//, opType: "message.edit" },
+  { method: "DELETE", pattern: /\/api\/im\/messages\//, opType: "message.delete" },
+  { method: "POST", pattern: /\/api\/im\/conversations\/[^/]+\/read/, opType: "conversation.read" }
+];
+function matchWriteOp(method, path2) {
+  for (const { method: m, pattern, opType } of WRITE_PATTERNS) {
+    if (method === m && pattern.test(path2)) return opType;
+  }
+  return null;
+}
+var OfflineManager = class extends OfflineEmitter {
+  constructor(storage, networkRequest, options = {}) {
+    super();
+    this.flushTimer = null;
+    this.flushing = false;
+    this._isOnline = true;
+    this._syncState = "idle";
+    this.sseSource = null;
+    this.sseReconnectTimer = null;
+    this.sseReconnectAttempts = 0;
+    /** Presence cache for realtime presence events */
+    this.presenceCache = /* @__PURE__ */ new Map();
+    this.storage = storage;
+    this.networkRequest = networkRequest;
+    this.options = {
+      syncOnConnect: options.syncOnConnect ?? true,
+      outboxRetryLimit: options.outboxRetryLimit ?? 5,
+      outboxFlushInterval: options.outboxFlushInterval ?? 1e3,
+      conflictStrategy: options.conflictStrategy ?? "server",
+      onConflict: options.onConflict,
+      syncMode: options.syncMode ?? "push",
+      quota: options.quota ? {
+        maxStorageBytes: options.quota.maxStorageBytes ?? 500 * 1024 * 1024,
+        warningThreshold: options.quota.warningThreshold ?? 0.9
+      } : void 0
+    };
+  }
+  get isOnline() {
+    return this._isOnline;
+  }
+  get syncState() {
+    return this._syncState;
+  }
+  async init() {
+    await this.storage.init();
+    this.startFlushTimer();
+  }
+  async destroy() {
+    this.stopFlushTimer();
+    this.stopContinuousSync();
+    this.removeAllListeners();
+  }
+  // ── Network state ─────────────────────────────────────────
+  setOnline(online) {
+    if (this._isOnline === online) return;
+    this._isOnline = online;
+    this.emit(online ? "network.online" : "network.offline", void 0);
+    if (online) {
+      this.flush();
+      if (this.options.syncOnConnect) {
+        if (this.options.syncMode === "push") {
+          this.startContinuousSync();
+        } else {
+          this.sync();
+        }
+      }
+    } else {
+      this.stopContinuousSync();
+    }
+  }
+  // ── Request dispatch ──────────────────────────────────────
+  /**
+   * Dispatch an IM request. Write ops go through outbox; reads check local cache.
+   */
+  async dispatch(method, path2, body, query) {
+    const opType = matchWriteOp(method, path2);
+    if (opType) {
+      return this.dispatchWrite(opType, method, path2, body, query);
+    }
+    if (method === "GET") {
+      const cached = await this.readFromCache(path2, query);
+      if (cached !== null) return cached;
+    }
+    try {
+      const result = await this.networkRequest(method, path2, body, query);
+      if (method === "GET") this.cacheReadResult(path2, query, result);
+      return result;
+    } catch {
+      if (!this._isOnline) {
+        return { ok: true, data: [] };
+      }
+      throw new Error("Network request failed");
+    }
+  }
+  // ── Outbox: write operations ──────────────────────────────
+  async dispatchWrite(opType, method, path2, body, query) {
+    const clientId = generateId();
+    const idempotencyKey = `sdk-${clientId}`;
+    let enrichedBody = body;
+    if (body && typeof body === "object" && (opType === "message.send" || opType === "message.edit")) {
+      enrichedBody = { ...body };
+      enrichedBody.metadata = {
+        ...body.metadata,
+        _idempotencyKey: idempotencyKey
+      };
+    }
+    let localMessage;
+    if (opType === "message.send" && body && typeof body === "object") {
+      const b = body;
+      const convIdMatch = path2.match(/\/(?:messages|direct|groups)\/([^/]+)/);
+      const conversationId = convIdMatch?.[1] ?? "";
+      localMessage = {
+        id: `local-${clientId}`,
+        clientId,
+        conversationId,
+        content: b.content ?? "",
+        type: b.type ?? "text",
+        senderId: "__self__",
+        parentId: b.parentId ?? null,
+        status: "pending",
+        metadata: b.metadata,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      await this.storage.putMessages([localMessage]);
+      this.emit("message.local", localMessage);
+    }
+    const op = {
+      id: clientId,
+      type: opType,
+      method,
+      path: path2,
+      body: enrichedBody,
+      query,
+      status: "pending",
+      createdAt: Date.now(),
+      retries: 0,
+      maxRetries: this.options.outboxRetryLimit,
+      idempotencyKey,
+      localData: localMessage
+    };
+    await this.storage.enqueue(op);
+    if (this._isOnline) this.flush();
+    const optimisticResult = {
+      ok: true,
+      data: localMessage ? { conversationId: localMessage.conversationId, message: localMessage } : void 0,
+      _pending: true,
+      _clientId: clientId
+    };
+    return optimisticResult;
+  }
+  // ── Outbox flush ──────────────────────────────────────────
+  startFlushTimer() {
+    this.stopFlushTimer();
+    this.flushTimer = setInterval(() => this.flush(), this.options.outboxFlushInterval);
+  }
+  stopFlushTimer() {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
+  }
+  async flush() {
+    if (this.flushing || !this._isOnline) return;
+    this.flushing = true;
+    try {
+      const ops = await this.storage.dequeueReady(10);
+      for (const op of ops) {
+        this.emit("outbox.sending", { opId: op.id, type: op.type });
+        try {
+          const result = await this.networkRequest(
+            op.method,
+            op.path,
+            op.body,
+            op.query
+          );
+          if (result.ok) {
+            await this.storage.ack(op.id);
+            this.emit("outbox.confirmed", { opId: op.id, serverData: result.data });
+            if (op.type === "message.send" && op.localData) {
+              const local = op.localData;
+              const serverMsg = result.data?.message;
+              if (serverMsg) {
+                await this.storage.deleteMessage(local.id);
+                await this.storage.putMessages([{
+                  id: serverMsg.id,
+                  clientId: op.id,
+                  conversationId: serverMsg.conversationId ?? local.conversationId,
+                  content: serverMsg.content ?? local.content,
+                  type: serverMsg.type ?? local.type,
+                  senderId: serverMsg.senderId ?? local.senderId,
+                  parentId: serverMsg.parentId,
+                  status: "confirmed",
+                  metadata: serverMsg.metadata ? typeof serverMsg.metadata === "string" ? JSON.parse(serverMsg.metadata) : serverMsg.metadata : void 0,
+                  createdAt: serverMsg.createdAt ?? local.createdAt
+                }]);
+                this.emit("message.confirmed", { clientId: op.id, serverMessage: serverMsg });
+              }
+            }
+          } else {
+            const errCode = result.error?.code;
+            if (errCode && !errCode.includes("TIMEOUT") && !errCode.includes("NETWORK")) {
+              await this.storage.nack(op.id, result.error?.message ?? "Request failed", op.maxRetries);
+              this.emit("outbox.failed", { opId: op.id, error: result.error?.message ?? "Request failed", retriesLeft: 0 });
+              if (op.type === "message.send") {
+                this.emit("message.failed", { clientId: op.id, error: result.error?.message ?? "Request failed" });
+              }
+            } else {
+              await this.storage.nack(op.id, result.error?.message ?? "Transient error", op.retries + 1);
+              this.emit("outbox.failed", {
+                opId: op.id,
+                error: result.error?.message ?? "Transient error",
+                retriesLeft: op.maxRetries - op.retries - 1
+              });
+            }
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Unknown error";
+          await this.storage.nack(op.id, msg, op.retries + 1);
+          if (op.retries + 1 >= op.maxRetries) {
+            this.emit("outbox.failed", { opId: op.id, error: msg, retriesLeft: 0 });
+            if (op.type === "message.send") {
+              this.emit("message.failed", { clientId: op.id, error: msg });
+            }
+          }
+        }
+      }
+    } finally {
+      this.flushing = false;
+    }
+  }
+  get outboxSize() {
+    return this.storage.getPendingCount();
+  }
+  // ── Sync engine ───────────────────────────────────────────
+  async sync() {
+    if (this._syncState === "syncing" || !this._isOnline) return;
+    this._syncState = "syncing";
+    this.emit("sync.start", void 0);
+    let totalNew = 0;
+    let totalUpdated = 0;
+    try {
+      let cursor = await this.storage.getCursor("global_sync") ?? "0";
+      let hasMore = true;
+      while (hasMore) {
+        const result = await this.networkRequest(
+          "GET",
+          "/api/im/sync",
+          void 0,
+          { since: cursor, limit: "100" }
+        );
+        if (!result.ok || !result.data) {
+          throw new Error(result.error?.message ?? "Sync failed");
+        }
+        const { events, cursor: newCursor, hasMore: more } = result.data;
+        for (const event of events) {
+          await this.applySyncEvent(event);
+          if (event.type === "message.new") totalNew++;
+          if (event.type.startsWith("conversation.")) totalUpdated++;
+        }
+        cursor = String(newCursor);
+        await this.storage.setCursor("global_sync", cursor);
+        hasMore = more;
+        this.emit("sync.progress", { synced: events.length, total: events.length });
+      }
+      this._syncState = "idle";
+      this.emit("sync.complete", { newMessages: totalNew, updatedConversations: totalUpdated });
+    } catch (err) {
+      this._syncState = "error";
+      this.emit("sync.error", {
+        error: err instanceof Error ? err.message : "Sync failed",
+        willRetry: false
+      });
+    }
+  }
+  async applySyncEvent(event) {
+    switch (event.type) {
+      case "message.new": {
+        const msg = event.data;
+        await this.storage.putMessages([{
+          id: msg.id,
+          conversationId: msg.conversationId ?? event.conversationId ?? "",
+          content: msg.content ?? "",
+          type: msg.type ?? "text",
+          senderId: msg.senderId ?? "",
+          parentId: msg.parentId ?? null,
+          status: "confirmed",
+          metadata: msg.metadata,
+          createdAt: msg.createdAt ?? event.at,
+          syncSeq: event.seq
+        }]);
+        break;
+      }
+      case "message.edit": {
+        const existing = await this.storage.getMessage(event.data.id);
+        if (existing) {
+          const hasLocalEdits = existing.status !== "confirmed";
+          if (hasLocalEdits && this.options.onConflict) {
+            const resolution = this.options.onConflict(existing, event);
+            if (resolution === "keep_local") break;
+            if (resolution !== "accept_remote" && typeof resolution === "object") {
+              resolution.syncSeq = event.seq;
+              await this.storage.putMessages([resolution]);
+              break;
+            }
+          }
+          existing.content = event.data.content ?? existing.content;
+          existing.updatedAt = event.at;
+          existing.syncSeq = event.seq;
+          await this.storage.putMessages([existing]);
+        }
+        break;
+      }
+      case "message.delete": {
+        if (event.data?.id) await this.storage.deleteMessage(event.data.id);
+        break;
+      }
+      case "conversation.create":
+      case "conversation.update": {
+        const conv = event.data;
+        await this.storage.putConversations([{
+          id: conv.id ?? event.conversationId ?? "",
+          type: conv.type ?? "direct",
+          title: conv.title,
+          unreadCount: conv.unreadCount ?? 0,
+          members: conv.members,
+          metadata: conv.metadata,
+          syncSeq: event.seq,
+          updatedAt: event.at,
+          lastMessageAt: conv.lastMessageAt
+        }]);
+        break;
+      }
+      case "conversation.archive": {
+        const convId = event.data?.id ?? event.conversationId;
+        if (convId) {
+          const existing = await this.storage.getConversation(convId);
+          if (existing) {
+            existing.metadata = { ...existing.metadata, _archived: true };
+            existing.syncSeq = event.seq;
+            existing.updatedAt = event.at;
+            await this.storage.putConversations([existing]);
+          }
+        }
+        break;
+      }
+      case "participant.add": {
+        const convId = event.data?.conversationId ?? event.conversationId;
+        if (convId) {
+          const existing = await this.storage.getConversation(convId);
+          if (existing && existing.members) {
+            const already = existing.members.find((m) => m.userId === event.data.userId);
+            if (!already) {
+              existing.members.push({
+                userId: event.data.userId,
+                username: event.data.username ?? "",
+                displayName: event.data.displayName,
+                role: event.data.role ?? "member"
+              });
+              existing.syncSeq = event.seq;
+              existing.updatedAt = event.at;
+              await this.storage.putConversations([existing]);
+            }
+          }
+        }
+        break;
+      }
+      case "participant.remove": {
+        const convId = event.data?.conversationId ?? event.conversationId;
+        if (convId) {
+          const existing = await this.storage.getConversation(convId);
+          if (existing && existing.members) {
+            existing.members = existing.members.filter((m) => m.userId !== event.data.userId);
+            existing.syncSeq = event.seq;
+            existing.updatedAt = event.at;
+            await this.storage.putConversations([existing]);
+          }
+        }
+        break;
+      }
+    }
+  }
+  /**
+   * Handle a realtime event (from WS/SSE) and store locally.
+   */
+  async handleRealtimeEvent(type, payload) {
+    if (type === "message.new" && payload) {
+      await this.storage.putMessages([{
+        id: payload.id,
+        conversationId: payload.conversationId ?? "",
+        content: payload.content ?? "",
+        type: payload.type ?? "text",
+        senderId: payload.senderId ?? "",
+        parentId: payload.parentId ?? null,
+        status: "confirmed",
+        metadata: payload.metadata,
+        createdAt: payload.createdAt ?? (/* @__PURE__ */ new Date()).toISOString()
+      }]);
+    }
+    if (type === "presence.changed" && payload?.userId) {
+      this.presenceCache.set(payload.userId, {
+        status: payload.status ?? "offline",
+        lastSeen: payload.lastSeen ?? (/* @__PURE__ */ new Date()).toISOString()
+      });
+      this.emit("presence.changed", payload);
+    }
+  }
+  /**
+   * Get cached presence status for a user.
+   */
+  getPresence(userId) {
+    return this.presenceCache.get(userId) ?? null;
+  }
+  /**
+   * Search messages in local storage.
+   */
+  async searchMessages(query, opts) {
+    if (this.storage.searchMessages) {
+      return this.storage.searchMessages(query, opts);
+    }
+    return [];
+  }
+  /**
+   * Get storage size and quota info.
+   */
+  async getQuotaStatus() {
+    const limit = this.options.quota?.maxStorageBytes ?? 500 * 1024 * 1024;
+    const threshold = this.options.quota?.warningThreshold ?? 0.9;
+    if (this.storage.getStorageSize) {
+      const size = await this.storage.getStorageSize();
+      const percentage = size.total / limit;
+      return {
+        used: size.total,
+        limit,
+        percentage,
+        warning: percentage >= threshold,
+        exceeded: percentage >= 1
+      };
+    }
+    return { used: 0, limit, percentage: 0, warning: false, exceeded: false };
+  }
+  /**
+   * Clear old messages for a conversation (user-initiated quota management).
+   */
+  async clearOldMessages(conversationId, keepCount) {
+    if (this.storage.clearOldMessages) {
+      return this.storage.clearOldMessages(conversationId, keepCount);
+    }
+    return 0;
+  }
+  // ── Read cache ────────────────────────────────────────────
+  async readFromCache(path2, query) {
+    if (/\/api\/im\/conversations$/.test(path2)) {
+      const convos2 = await this.storage.getConversations({ limit: 50 });
+      if (convos2.length > 0) return { ok: true, data: convos2 };
+    }
+    const msgMatch = path2.match(/\/api\/im\/messages\/([^/]+)$/);
+    if (msgMatch) {
+      const convId = msgMatch[1];
+      const limit = query?.limit ? parseInt(query.limit) : 50;
+      const messages = await this.storage.getMessages(convId, { limit, before: query?.before });
+      if (messages.length > 0) return { ok: true, data: messages };
+    }
+    if (/\/api\/im\/contacts$/.test(path2)) {
+      const contacts = await this.storage.getContacts();
+      if (contacts.length > 0) return { ok: true, data: contacts };
+    }
+    return null;
+  }
+  async cacheReadResult(path2, _query, result) {
+    if (!result?.ok || !result?.data) return;
+    try {
+      if (/\/api\/im\/conversations$/.test(path2) && Array.isArray(result.data)) {
+        const convos2 = result.data.map((c) => ({
+          id: c.id,
+          type: c.type ?? "direct",
+          title: c.title,
+          lastMessage: c.lastMessage,
+          lastMessageAt: c.lastMessageAt ?? c.updatedAt,
+          unreadCount: c.unreadCount ?? 0,
+          members: c.members,
+          metadata: c.metadata,
+          updatedAt: c.updatedAt ?? (/* @__PURE__ */ new Date()).toISOString()
+        }));
+        await this.storage.putConversations(convos2);
+      }
+      const msgMatch = path2.match(/\/api\/im\/messages\/([^/]+)$/);
+      if (msgMatch && Array.isArray(result.data)) {
+        const messages = result.data.map((m) => ({
+          id: m.id,
+          conversationId: m.conversationId ?? msgMatch[1],
+          content: m.content ?? "",
+          type: m.type ?? "text",
+          senderId: m.senderId ?? "",
+          parentId: m.parentId ?? null,
+          status: "confirmed",
+          metadata: m.metadata,
+          createdAt: m.createdAt ?? (/* @__PURE__ */ new Date()).toISOString()
+        }));
+        await this.storage.putMessages(messages);
+      }
+      if (/\/api\/im\/contacts$/.test(path2) && Array.isArray(result.data)) {
+        await this.storage.putContacts(result.data);
+      }
+    } catch {
+    }
+  }
+  // ── SSE continuous sync ────────────────────────────────────
+  /**
+   * Start continuous sync via SSE (Server-Sent Events).
+   * Replaces polling with real-time push when syncMode is 'push'.
+   */
+  async startContinuousSync() {
+    if (this.sseSource) return;
+    if (typeof EventSource === "undefined") {
+      return this.sync();
+    }
+    const token = this.tokenProvider?.();
+    if (!token) {
+      return this.sync();
+    }
+    const cursor = await this.storage.getCursor("global_sync") ?? "0";
+    const baseUrl = this.getBaseUrl();
+    const url = `${baseUrl}/api/im/sync/stream?token=${encodeURIComponent(token)}&since=${cursor}`;
+    this._syncState = "syncing";
+    this.emit("sync.start", void 0);
+    this.sseReconnectAttempts = 0;
+    try {
+      this.sseSource = new EventSource(url);
+      let totalNew = 0;
+      let totalUpdated = 0;
+      this.sseSource.addEventListener("sync", async (e) => {
+        try {
+          const event = JSON.parse(e.data);
+          await this.applySyncEvent(event);
+          await this.storage.setCursor("global_sync", String(event.seq));
+          if (event.type === "message.new") totalNew++;
+          if (event.type.startsWith("conversation.")) totalUpdated++;
+          this.emit("sync.progress", { synced: 1, total: 1 });
+          if (this.options.quota) {
+            await this.checkQuota();
+          }
+        } catch {
+        }
+      });
+      this.sseSource.addEventListener("caught_up", () => {
+        this._syncState = "idle";
+        this.sseReconnectAttempts = 0;
+        this.emit("sync.complete", { newMessages: totalNew, updatedConversations: totalUpdated });
+        totalNew = 0;
+        totalUpdated = 0;
+      });
+      this.sseSource.addEventListener("error", () => {
+        this._syncState = "error";
+        this.emit("sync.error", { error: "SSE connection error", willRetry: true });
+      });
+      this.sseSource.onerror = () => {
+        if (this.sseSource?.readyState === EventSource.CLOSED) {
+          this.sseSource = null;
+          this._syncState = "error";
+          this.scheduleSseReconnect();
+        }
+      };
+    } catch (err) {
+      this._syncState = "error";
+      this.emit("sync.error", {
+        error: err instanceof Error ? err.message : "SSE init failed",
+        willRetry: true
+      });
+      this.scheduleSseReconnect();
+    }
+  }
+  /**
+   * Stop the SSE continuous sync connection.
+   */
+  stopContinuousSync() {
+    if (this.sseSource) {
+      this.sseSource.close();
+      this.sseSource = null;
+    }
+    if (this.sseReconnectTimer) {
+      clearTimeout(this.sseReconnectTimer);
+      this.sseReconnectTimer = null;
+    }
+    this._syncState = "idle";
+  }
+  scheduleSseReconnect() {
+    if (!this._isOnline) return;
+    this.sseReconnectAttempts++;
+    const delay = Math.min(1e3 * Math.pow(2, this.sseReconnectAttempts - 1), 3e4);
+    this.sseReconnectTimer = setTimeout(() => {
+      this.sseReconnectTimer = null;
+      if (this._isOnline) this.startContinuousSync();
+    }, delay);
+  }
+  /** Get the base URL for SSE connections (strip /api/im prefix). */
+  getBaseUrl() {
+    return typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  }
+  // ── Quota check ─────────────────────────────────────────────
+  async checkQuota() {
+    if (!this.options.quota || !this.storage.getStorageSize) return;
+    const size = await this.storage.getStorageSize();
+    const limit = this.options.quota.maxStorageBytes;
+    const threshold = this.options.quota.warningThreshold;
+    const pct = size.total / limit;
+    if (pct >= 1) {
+      this.emit("quota.exceeded", { used: size.total, limit });
+    } else if (pct >= threshold) {
+      this.emit("quota.warning", { used: size.total, limit, percentage: pct });
+    }
+  }
+};
+
 // src/types.ts
 var ENVIRONMENTS = {
   production: "https://prismer.cloud"
@@ -496,8 +1147,8 @@ var DirectClient = class {
   /** Get direct message history with a user */
   async getMessages(userId, options) {
     const query = {};
-    if (options?.limit) query.limit = String(options.limit);
-    if (options?.offset) query.offset = String(options.offset);
+    if (options?.limit != null) query.limit = String(options.limit);
+    if (options?.offset != null) query.offset = String(options.offset);
     return this._r("GET", `/api/im/direct/${userId}/messages`, void 0, query);
   }
 };
@@ -529,8 +1180,8 @@ var GroupsClient = class {
   /** Get group message history */
   async getMessages(groupId, options) {
     const query = {};
-    if (options?.limit) query.limit = String(options.limit);
-    if (options?.offset) query.offset = String(options.offset);
+    if (options?.limit != null) query.limit = String(options.limit);
+    if (options?.offset != null) query.offset = String(options.offset);
     return this._r("GET", `/api/im/groups/${groupId}/messages`, void 0, query);
   }
   /** Add a member to a group (owner/admin only) */
@@ -582,8 +1233,8 @@ var MessagesClient = class {
   /** Get message history for a conversation */
   async getHistory(conversationId, options) {
     const query = {};
-    if (options?.limit) query.limit = String(options.limit);
-    if (options?.offset) query.offset = String(options.offset);
+    if (options?.limit != null) query.limit = String(options.limit);
+    if (options?.offset != null) query.offset = String(options.offset);
     return this._r("GET", `/api/im/messages/${conversationId}`, void 0, query);
   }
   /** Edit a message */
@@ -643,8 +1294,8 @@ var CreditsClient = class {
   /** Get credit transaction history */
   async transactions(options) {
     const query = {};
-    if (options?.limit) query.limit = String(options.limit);
-    if (options?.offset) query.offset = String(options.offset);
+    if (options?.limit != null) query.limit = String(options.limit);
+    if (options?.offset != null) query.offset = String(options.offset);
     return this._r("GET", "/api/im/credits/transactions", void 0, query);
   }
 };
@@ -675,6 +1326,211 @@ var WorkspaceClient = class {
     return this._r("GET", "/api/im/workspace/mentions/autocomplete", void 0, q);
   }
 };
+function guessMimeType(fileName) {
+  const ext = fileName.split(".").pop()?.toLowerCase() || "";
+  const map = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    svg: "image/svg+xml",
+    ico: "image/x-icon",
+    bmp: "image/bmp",
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ppt: "application/vnd.ms-powerpoint",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    txt: "text/plain",
+    csv: "text/csv",
+    html: "text/html",
+    css: "text/css",
+    js: "text/javascript",
+    json: "application/json",
+    xml: "application/xml",
+    md: "text/markdown",
+    yaml: "text/yaml",
+    yml: "text/yaml",
+    zip: "application/zip",
+    gz: "application/gzip",
+    tar: "application/x-tar",
+    mp3: "audio/mpeg",
+    wav: "audio/wav",
+    mp4: "video/mp4",
+    webm: "video/webm"
+  };
+  return map[ext] || "application/octet-stream";
+}
+var FilesClient = class {
+  constructor(_r, _baseUrl, _fetchFn, _getAuthHeaders) {
+    this._r = _r;
+    this._baseUrl = _baseUrl;
+    this._fetchFn = _fetchFn;
+    this._getAuthHeaders = _getAuthHeaders;
+  }
+  /** Get a presigned upload URL */
+  async presign(options) {
+    return this._r("POST", "/api/im/files/presign", options);
+  }
+  /** Confirm an uploaded file (triggers validation + CDN activation) */
+  async confirm(uploadId) {
+    return this._r("POST", "/api/im/files/confirm", { uploadId });
+  }
+  /** Get storage quota */
+  async quota() {
+    return this._r("GET", "/api/im/files/quota");
+  }
+  /** Delete a file */
+  async delete(uploadId) {
+    return this._r("DELETE", `/api/im/files/${uploadId}`);
+  }
+  /** List allowed MIME types */
+  async types() {
+    return this._r("GET", "/api/im/files/types");
+  }
+  /** Initialize a multipart upload (for files > 10 MB) */
+  async initMultipart(opts) {
+    return this._r("POST", "/api/im/files/upload/init", opts);
+  }
+  /** Complete a multipart upload */
+  async completeMultipart(uploadId, parts) {
+    return this._r("POST", "/api/im/files/upload/complete", { uploadId, parts });
+  }
+  // --------------------------------------------------------------------------
+  // High-level convenience methods
+  // --------------------------------------------------------------------------
+  /**
+   * Upload a file (full lifecycle: presign → upload → confirm).
+   *
+   * @param input - File, Blob, Buffer, Uint8Array, or file path (Node.js string)
+   * @param opts  - Optional fileName, mimeType, onProgress
+   * @returns Confirmed upload result with CDN URL
+   */
+  async upload(input, opts) {
+    let bytes;
+    let fileName;
+    if (typeof input === "string") {
+      const fs2 = await import("fs");
+      const path2 = await import("path");
+      const buf = await fs2.promises.readFile(input);
+      bytes = new Uint8Array(buf);
+      fileName = opts?.fileName || path2.basename(input);
+    } else if (typeof Blob !== "undefined" && input instanceof Blob) {
+      const ab = await input.arrayBuffer();
+      bytes = new Uint8Array(ab);
+      fileName = opts?.fileName || (input instanceof File ? input.name : "");
+      if (!fileName) throw new Error("fileName is required when uploading Blob without name");
+    } else if (input instanceof Uint8Array) {
+      bytes = input;
+      fileName = opts?.fileName || "";
+      if (!fileName) throw new Error("fileName is required when uploading Buffer or Uint8Array");
+    } else {
+      throw new Error("Unsupported input type");
+    }
+    const fileSize = bytes.byteLength;
+    const mimeType = opts?.mimeType || guessMimeType(fileName);
+    if (fileSize > 50 * 1024 * 1024) {
+      throw new Error("File exceeds maximum size of 50 MB");
+    }
+    if (fileSize <= 10 * 1024 * 1024) {
+      return this._uploadSimple(bytes, fileName, fileSize, mimeType, opts?.onProgress);
+    }
+    return this._uploadMultipart(bytes, fileName, fileSize, mimeType, opts?.onProgress);
+  }
+  /**
+   * Upload a file and send it as a message in one call.
+   *
+   * @param conversationId - Target conversation
+   * @param input          - File input (same as upload())
+   * @param opts           - Upload options + optional message content/parentId
+   */
+  async sendFile(conversationId, input, opts) {
+    const uploaded = await this.upload(input, opts);
+    const msgRes = await this._r("POST", `/api/im/messages/${conversationId}`, {
+      content: opts?.content || uploaded.fileName,
+      type: "file",
+      metadata: {
+        uploadId: uploaded.uploadId,
+        fileUrl: uploaded.cdnUrl,
+        fileName: uploaded.fileName,
+        fileSize: uploaded.fileSize,
+        mimeType: uploaded.mimeType
+      },
+      parentId: opts?.parentId
+    });
+    if (!msgRes.ok) {
+      throw new Error(msgRes.error?.message || "Failed to send file message");
+    }
+    return { upload: uploaded, message: msgRes.data };
+  }
+  // --------------------------------------------------------------------------
+  // Private upload helpers
+  // --------------------------------------------------------------------------
+  async _uploadSimple(bytes, fileName, fileSize, mimeType, onProgress) {
+    const presignRes = await this.presign({ fileName, fileSize, mimeType });
+    if (!presignRes.ok || !presignRes.data) {
+      throw new Error(presignRes.error?.message || "Presign failed");
+    }
+    const { uploadId, url, fields } = presignRes.data;
+    const formData = new FormData();
+    const isS3 = url.startsWith("http");
+    const uploadUrl = isS3 ? url : `${this._baseUrl}${url}`;
+    if (isS3) {
+      for (const [k, v] of Object.entries(fields)) formData.append(k, v);
+    }
+    const ab = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(ab).set(bytes);
+    formData.append("file", new Blob([ab], { type: mimeType }), fileName);
+    const headers = {};
+    if (!isS3) Object.assign(headers, this._getAuthHeaders());
+    const resp = await this._fetchFn(uploadUrl, { method: "POST", body: formData, headers });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Upload failed (${resp.status}): ${text}`);
+    }
+    onProgress?.(fileSize, fileSize);
+    const confirmRes = await this.confirm(uploadId);
+    if (!confirmRes.ok || !confirmRes.data) {
+      throw new Error(confirmRes.error?.message || "Confirm failed");
+    }
+    return confirmRes.data;
+  }
+  async _uploadMultipart(bytes, fileName, fileSize, mimeType, onProgress) {
+    const initRes = await this.initMultipart({ fileName, fileSize, mimeType });
+    if (!initRes.ok || !initRes.data) {
+      throw new Error(initRes.error?.message || "Multipart init failed");
+    }
+    const { uploadId, parts: partUrls } = initRes.data;
+    const CHUNK_SIZE = 5 * 1024 * 1024;
+    const completedParts = [];
+    let uploaded = 0;
+    for (const part of partUrls) {
+      const start = (part.partNumber - 1) * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, fileSize);
+      const chunk = bytes.slice(start, end);
+      const isS3 = part.url.startsWith("http");
+      const partUrl = isS3 ? part.url : `${this._baseUrl}${part.url}`;
+      const headers = { "Content-Type": mimeType };
+      if (!isS3) Object.assign(headers, this._getAuthHeaders());
+      const resp = await this._fetchFn(partUrl, { method: "PUT", body: chunk, headers });
+      if (!resp.ok) {
+        throw new Error(`Part ${part.partNumber} upload failed (${resp.status})`);
+      }
+      const etag = resp.headers.get("ETag") || `"part-${part.partNumber}"`;
+      completedParts.push({ partNumber: part.partNumber, etag });
+      uploaded += chunk.byteLength;
+      onProgress?.(uploaded, fileSize);
+    }
+    const completeRes = await this.completeMultipart(uploadId, completedParts);
+    if (!completeRes.ok || !completeRes.data) {
+      throw new Error(completeRes.error?.message || "Multipart complete failed");
+    }
+    return completeRes.data;
+  }
+};
 var IMRealtimeClient = class {
   constructor(_wsBase) {
     this._wsBase = _wsBase;
@@ -698,7 +1554,7 @@ var IMRealtimeClient = class {
   }
 };
 var IMClient = class {
-  constructor(request, wsBase) {
+  constructor(request, wsBase, fetchFn, getAuthHeaders, offlineManager) {
     this.account = new AccountClient(request);
     this.direct = new DirectClient(request);
     this.groups = new GroupsClient(request);
@@ -708,7 +1564,9 @@ var IMClient = class {
     this.bindings = new BindingsClient(request);
     this.credits = new CreditsClient(request);
     this.workspace = new WorkspaceClient(request);
+    this.files = new FilesClient(request, wsBase, fetchFn, getAuthHeaders);
     this.realtime = new IMRealtimeClient(wsBase);
+    this.offline = offlineManager ?? null;
   }
   /** IM health check */
   async health() {
@@ -717,6 +1575,7 @@ var IMClient = class {
 };
 var PrismerClient = class {
   constructor(config = {}) {
+    this._offlineManager = null;
     if (config.apiKey && !config.apiKey.startsWith("sk-prismer-") && !config.apiKey.startsWith("eyJ")) {
       console.warn('Warning: API key should start with "sk-prismer-" (or "eyJ" for IM JWT)');
     }
@@ -726,10 +1585,31 @@ var PrismerClient = class {
     this.timeout = config.timeout || 3e4;
     this.fetchFn = config.fetch || fetch;
     this.imAgent = config.imAgent;
+    if (config.offline) {
+      this._offlineManager = new OfflineManager(
+        config.offline.storage,
+        (m, p, b, q) => this._request(m, p, b, q),
+        config.offline
+      );
+      this._offlineManager.init().catch(
+        (err) => console.warn("[PrismerSDK] Offline storage init failed:", err)
+      );
+    }
+    const imRequest = this._offlineManager ? (m, p, b, q) => this._offlineManager.dispatch(m, p, b, q) : (m, p, b, q) => this._request(m, p, b, q);
     this.im = new IMClient(
-      (method, path2, body, query) => this._request(method, path2, body, query),
-      this.baseUrl
+      imRequest,
+      this.baseUrl,
+      this.fetchFn,
+      () => this._getAuthHeaders(),
+      this._offlineManager
     );
+  }
+  /** Build auth headers for raw HTTP requests (used by file upload) */
+  _getAuthHeaders() {
+    const headers = {};
+    if (this.apiKey) headers["Authorization"] = `Bearer ${this.apiKey}`;
+    if (this.imAgent) headers["X-IM-Agent"] = this.imAgent;
+    return headers;
   }
   /**
    * Set or update the auth token (API key or IM JWT).
@@ -738,10 +1618,16 @@ var PrismerClient = class {
   setToken(token) {
     this.apiKey = token;
   }
+  /** Cleanup resources (offline manager, timers). Call when disposing the client. */
+  async destroy() {
+    if (this._offlineManager) {
+      await this._offlineManager.destroy();
+    }
+  }
   // --------------------------------------------------------------------------
   // Internal request helper
   // --------------------------------------------------------------------------
-  async _request(method, path2, body, query) {
+  async _request(method, path2, body, query, _isRetry) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
     try {
@@ -763,6 +1649,16 @@ var PrismerClient = class {
       }
       const response = await this.fetchFn(url, init);
       const data = await response.json();
+      if (response.status === 401 && this.apiKey.startsWith("eyJ") && !_isRetry && !path2.includes("/token/refresh")) {
+        try {
+          const refreshRes = await this._request("POST", "/api/im/token/refresh", void 0, void 0, true);
+          if (refreshRes?.ok && refreshRes?.data?.token) {
+            this.apiKey = refreshRes.data.token;
+            return this._request(method, path2, body, query, true);
+          }
+        } catch {
+        }
+      }
       if (!response.ok) {
         const err = data.error || { code: "HTTP_ERROR", message: `Request failed with status ${response.status}` };
         return { ...data, success: false, ok: false, error: err };
@@ -1255,6 +2151,84 @@ convos.command("read").description("Mark conversation as read").argument("<conve
     process.exit(1);
   }
   console.log("Marked as read.");
+});
+var files = im.command("files").description("File upload management");
+files.command("upload").description("Upload a file").argument("<path>", "File path to upload").option("--mime <type>", "Override MIME type").option("--json", "JSON output").action(async (filePath, opts) => {
+  const client = getIMClient();
+  try {
+    const result = await client.im.files.upload(filePath, { mimeType: opts.mime });
+    if (opts.json) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Upload ID: ${result.uploadId}`);
+    console.log(`CDN URL:   ${result.cdnUrl}`);
+    console.log(`File:      ${result.fileName} (${result.fileSize} bytes)`);
+    console.log(`MIME:      ${result.mimeType}`);
+  } catch (err) {
+    console.error("Upload failed:", err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
+});
+files.command("send").description("Upload file and send as message").argument("<conversation-id>", "Conversation ID").argument("<path>", "File path to upload").option("--content <text>", "Message text").option("--mime <type>", "Override MIME type").option("--json", "JSON output").action(async (conversationId, filePath, opts) => {
+  const client = getIMClient();
+  try {
+    const result = await client.im.files.sendFile(conversationId, filePath, { content: opts.content, mimeType: opts.mime });
+    if (opts.json) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`Upload ID: ${result.upload.uploadId}`);
+    console.log(`CDN URL:   ${result.upload.cdnUrl}`);
+    console.log(`File:      ${result.upload.fileName}`);
+    console.log(`Message:   sent`);
+  } catch (err) {
+    console.error("Send file failed:", err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
+});
+files.command("quota").description("Show storage quota").option("--json", "JSON output").action(async (opts) => {
+  const client = getIMClient();
+  const res = await client.im.files.quota();
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  if (opts.json) {
+    console.log(JSON.stringify(res.data, null, 2));
+    return;
+  }
+  const q = res.data;
+  console.log(`Used:       ${q?.used ?? "-"} bytes`);
+  console.log(`Limit:      ${q?.limit ?? "-"} bytes`);
+  console.log(`File Count: ${q?.fileCount ?? "-"}`);
+  console.log(`Tier:       ${q?.tier ?? "-"}`);
+});
+files.command("delete").description("Delete an uploaded file").argument("<upload-id>", "Upload ID").action(async (uploadId) => {
+  const client = getIMClient();
+  const res = await client.im.files.delete(uploadId);
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  console.log(`Deleted upload ${uploadId}.`);
+});
+files.command("types").description("List allowed MIME types").option("--json", "JSON output").action(async (opts) => {
+  const client = getIMClient();
+  const res = await client.im.files.types();
+  if (!res.ok) {
+    console.error("Error:", res.error);
+    process.exit(1);
+  }
+  if (opts.json) {
+    console.log(JSON.stringify(res.data, null, 2));
+    return;
+  }
+  const types = res.data?.allowedMimeTypes || [];
+  console.log(`Allowed MIME types (${types.length}):`);
+  for (const t of types) {
+    console.log(`  ${t}`);
+  }
 });
 im.command("credits").description("Show credits balance").option("--json", "JSON output").action(async (opts) => {
   const client = getIMClient();

@@ -9,7 +9,7 @@ import { getApiKey } from './lib/client.js';
 
 const server = new McpServer({
   name: 'prismer',
-  version: '1.0.0',
+  version: '1.7.1',
 });
 
 registerContextLoad(server);
