@@ -16,7 +16,7 @@
 
 # ROADMAP — Engineering Roadmap
 
-> Last updated: 2026-02-27
+> Last updated: 2026-03-06
 > Status: Phase 1-3 complete ✅, Phase 4A complete ✅, Phase 4B IM MVP complete ✅ (with FK fix)
 > **Container Image**: v5.0-openclaw (prismer-workspace 0.5.0, gateway 1.1.0). See `docker/VERSIONS.md`.
 > **MVP Full Chain**: Plugin v0.5.0 (26 tools), workspace-collection auto-binding, workspace-aware LaTeX compile, artifact save + gallery pipeline. See `docs/MVP_FULL_CHAIN.md`.
@@ -35,6 +35,7 @@ Phase 2   (DONE)    → Integration: Discovery → Assets → Workspace flow
 Phase 3   (DONE)    → Agent: Service abstraction, OpenClaw client, container lifecycle, persistence, LLM gateway
 Phase 4   (STARTED) → Cloud SDK + Data Architecture: persistence, context, files, IM convergence, agent automation (4A-B ✅, 4C-G pending)
 Phase 5             → Ecosystem: npm package extraction, open source
+Phase 6             → Agent-Native Software: OpenCode + Skill standard for agent-built custom interactive applications
 ```
 
 ---
@@ -492,6 +493,8 @@ Activate existing `PrismaSessionPersistence` for full workspace data persistence
 - [ ] Directive pipeline works: Agent → directive files → Gateway → frontend
 
 ### 5B. Component Package Extraction
+> Note: Phase 6 (Agent-Native Software) 中成熟的 Agent 生成应用最终沉淀为 `@prismer/mod-*` 标准模块，与此处的组件提取共享分发体系。
+
 - [ ] `@prismer/paper-reader` — PDF reader component
 - [ ] `@prismer/latex-editor` — LaTeX editor
 - [ ] `@prismer/jupyter-kernel` — Jupyter integration
@@ -530,6 +533,165 @@ Activate existing `PrismaSessionPersistence` for full workspace data persistence
 - [ ] Timeline: full read-only with replay capability
 - [ ] Social bar: Star / Fork / Comment / Request Collaborate buttons
 - [ ] Mobile: public workspace accessible via mobile read-only view
+
+---
+
+## Phase 6 — Agent-Native Software Standard
+
+**Goal**: 建立一套标准，使 Agent（OpenClaw + OpenCode）能够根据用户需求，**直接构建出可交互的定制化软件**——一个全新的软件品类。用户描述需求，Agent 自主完成前后端开发，产出一个 Agent 可控制、人可交互的完整应用。
+
+**Design doc**: `docs/MODULAR_COMPONENT_ARCHITECTURE.md`
+
+**核心洞察**：Prismer 容器已经具备两个关键的可扩展运行时：
+1. **后端**：Container Gateway (`.mjs`) 可以动态加载新 endpoint——Agent 写 `.mjs` 文件即可创建新 API
+2. **前端**：Code Playground 已有完整的 React 编译运行能力——Agent 写 React 代码即可创建新 UI
+
+缺的是一个**标准**把它们串起来：Skill 定义能力边界 → OpenCode 执行代码生成 → 容器 endpoint 提供后端 → Code Playground 渲染前端 → Agent 持续控制 → 用户直接交互。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  User: "I need a real-time stock dashboard with alerts"     │
+└────────────────────────┬────────────────────────────────────┘
+                         ↓
+┌────────────────────────────────────────────────────────────┐
+│  OpenClaw Agent — 理解需求，拆解为前端+后端+数据，选择 Skill │
+│  ↓ invokes OpenCode (Claude Code CLI) inside container     │
+└────────────────────────┬───────────────────────────────────┘
+                         ↓
+        ┌────────────────┴────────────────┐
+        ↓                                 ↓
+┌───────────────────┐          ┌────────────────────────┐
+│ Backend Endpoint   │          │ Frontend Component      │
+│ /api/v1/custom/    │          │ React app in Code       │
+│  stock-dashboard   │          │ Playground (HtmlPreview │
+│ (.mjs in gateway)  │          │ or WebContainer)        │
+└────────┬──────────┘          └──────────┬─────────────┘
+         │     postMessage bridge          │
+         └──────────── ↔ ─────────────────┘
+                       ↕
+              ┌────────────────┐
+              │ User interacts │  Agent observes & controls
+              │ with live app  │  via directive + postMessage
+              └────────────────┘
+```
+
+### 6A. Container Endpoint Runtime — 可扩展后端 (2 weeks)
+
+**Goal**: Agent 可以通过写 `.mjs` 文件在容器内创建新的 HTTP endpoint，作为定制化应用的后端。
+
+**基础**：`container-gateway.mjs` 已是一个零依赖 Node.js 反向代理，路由到 5 个内部服务。扩展它支持动态 endpoint 加载。
+
+- [ ] **动态 endpoint 加载器**：Gateway 启动时扫描 `/workspace/endpoints/*.mjs`，每个文件 export `{ path, method, handler }`
+- [ ] **热重载**：`fs.watch` 监听 endpoint 目录，新增/修改 `.mjs` 自动注册路由，无需重启 Gateway
+- [ ] **Endpoint 标准接口**：
+  ```javascript
+  // /workspace/endpoints/stock-dashboard.mjs
+  export const path = '/api/v1/custom/stock-dashboard';
+  export const method = 'GET';  // or ['GET', 'POST']
+  export async function handler(req, res) {
+    // Agent-generated backend logic
+    // Has access to: workspace files, container services, fetch()
+  }
+  ```
+- [ ] **安全沙箱**：endpoint 运行在受限上下文——只能访问 `/workspace/` 文件系统、容器内部服务、出站 HTTP
+- [ ] **Endpoint 生命周期 API**：Agent 工具 `create_endpoint` / `update_endpoint` / `delete_endpoint` / `list_endpoints`
+- [ ] **状态持久化**：endpoint 可读写 `/workspace/data/{endpoint-name}/` 目录，JSON 文件作为轻量存储
+- [ ] **Gateway 路由优先级**：内置服务路由 > 自定义 endpoint > 404
+
+### 6B. Code Playground as App Runtime — 可扩展前端 (2 weeks)
+
+**Goal**: Code Playground 从"代码演示工具"升级为"Agent 生成应用的运行时"，Agent 写 React 代码，用户直接看到并交互。
+
+**基础**：Code Playground 已有 WebContainer (Vite+React) 和 HtmlPreview (iframe srcDoc) 两条路径。
+
+- [ ] **App Mode**：新增 `app` 模式（区别于 project/script/presentation），全屏无 chrome，纯 iframe 渲染
+- [ ] **postMessage Bridge**：iframe ↔ workspace 双向通信标准
+  ```
+  Custom App → parent.postMessage({ type: 'prismer:app:event', payload }) → Agent
+  Agent → directive → CodePlayground → iframe.postMessage({ type: 'prismer:app:update', payload }) → Custom App
+  ```
+- [ ] **App ↔ Backend Bridge**：Custom App 内的 `fetch('/api/v1/custom/...')` 自动路由到容器 endpoint（通过 Gateway 代理）
+- [ ] **HtmlPreview 增强**：支持 React CDN 模式（<100ms 启动），适合 Agent 快速生成的轻量应用
+- [ ] **WebContainer 预热**：后台预启动 WebContainer 实例，减少首次加载到 <5s
+- [ ] **App 持久化**：Agent 生成的应用代码保存到 `/workspace/apps/{app-name}/`，下次打开 workspace 自动恢复
+
+### 6C. OpenCode Integration — Agent 的编程能力 (2 weeks)
+
+**Goal**: 让 OpenClaw Agent 能调用 OpenCode（Claude Code CLI）来执行实际的代码生成、调试、迭代，形成"Agent 编程 Agent"的能力。
+
+- [ ] **OpenCode Plugin**：`docker/plugin/opencode/` — 遵循已有 plugin 模式
+- [ ] **核心工具集**：
+  | Tool | 作用 |
+  |------|------|
+  | `opencode_generate` | 从需求描述生成完整应用（前端 React + 后端 endpoint） |
+  | `opencode_iterate` | 根据用户反馈修改现有应用代码 |
+  | `opencode_debug` | 分析运行错误、修复代码 |
+  | `opencode_test` | 生成并运行测试验证功能 |
+- [ ] **执行路径**：OpenClaw 调用 `claude --print` 在容器内执行，输出写入 `/workspace/apps/` 和 `/workspace/endpoints/`
+- [ ] **上下文注入**：将 workspace 上下文（聊天历史、已有数据、用户偏好）作为 context 传递给 OpenCode
+- [ ] **迭代循环**：生成 → 预览 → 用户反馈 → Agent 调用 opencode_iterate → 更新，直到满意
+- [ ] Layer 1 测试
+
+### 6D. Skill Standard — 能力边界定义 (1 week)
+
+**Goal**: 定义 Skill 标准，让 Agent 知道它能构建什么、怎么构建、输出是什么。Skill 是 Agent 编程能力的"说明书"。
+
+- [ ] **App Builder Skill**：`skills/app-builder/SKILL.md` — 描述完整的应用构建流程
+  ```markdown
+  ## Tools
+  - opencode_generate — Generate full-stack app (React frontend + .mjs backend)
+  - opencode_iterate — Modify app based on user feedback
+  - create_endpoint — Deploy backend endpoint to Gateway
+  - update_code — Push frontend to Code Playground
+
+  ## Constraints
+  - Frontend: React 18+, runs in Code Playground iframe
+  - Backend: .mjs files, runs in Gateway, access to /workspace/ only
+  - Communication: postMessage bridge (app ↔ agent), fetch (app ↔ endpoint)
+  - Storage: /workspace/data/{app}/ for persistent state
+
+  ## Workflow
+  1. Understand user requirement → decompose into frontend + backend
+  2. Generate code via opencode_generate
+  3. Deploy endpoint via create_endpoint
+  4. Push frontend via update_code (app mode, fullscreen)
+  5. User interacts → agent observes via postMessage events
+  6. Iterate via opencode_iterate until user satisfied
+  ```
+- [ ] **领域 Skill 扩展**：基于 App Builder，创建领域特化 Skill
+  - `skills/data-dashboard/` — 数据可视化仪表板（Plotly/D3 + 数据查询 endpoint）
+  - `skills/form-builder/` — 交互式表单应用（表单渲染 + 提交处理 endpoint）
+  - `skills/doc-tool/` — 文档处理工具（PDF/Word 处理 endpoint + 预览前端）
+- [ ] **Skill Discovery**：Agent 通过 `find-skills` 发现可用的 App Builder Skill，按需求选择合适的领域 Skill
+
+### 6E. Agent Control Protocol — Agent 持续控制应用 (1 week)
+
+**Goal**: 应用上线后，Agent 不是"交付就走"，而是持续监控和控制运行中的应用——观察用户行为、响应应用事件、主动更新。
+
+- [ ] **Event 上报**：Custom App 通过 postMessage 上报用户交互事件 → Agent 接收并理解
+- [ ] **Agent 主动推送**：Agent 通过 directive → Code Playground → postMessage 向运行中的 App 推送数据更新
+- [ ] **应用状态同步**：App 状态变更通知 Agent（如表单提交、数据变化），Agent 决定下一步操作
+- [ ] **多应用编排**：Agent 同时控制多个自定义应用（如 dashboard + alert panel），应用间通过 Agent 协调
+- [ ] **生命周期管理**：Agent 可以启动/暂停/销毁自定义应用，管理 endpoint 和 frontend 资源
+
+### 6F. Module Packaging — 沉淀与复用 (2 weeks)
+
+**Goal**: Agent 构建的成功应用可以沉淀为标准模块，跨 workspace 复用和分发。这是结果而非前提。
+
+- [ ] **App 快照**：将 `/workspace/apps/{name}/` + `/workspace/endpoints/{name}.mjs` 打包为可分发单元
+- [ ] **模块标准**：`@prismer/mod-{id}` npm 包格式（frontend + endpoint + skill + manifest）
+- [ ] **本地安装**：从快照安装到其他 workspace —— endpoint 自动部署，frontend 自动注册
+- [ ] **Cloud 分发**：发布到 Prismer Cloud Skill Registry，其他用户可搜索安装
+- [ ] **WindowViewer 集成**：成熟的自定义应用可升级为 WindowViewer tab（与内置组件同等地位）
+
+### Phase 6 Success Metrics
+
+1. **端到端 demo**：用户一句话描述 → Agent 生成前后端 → 用户 <3 分钟内看到可交互应用
+2. **迭代效率**：用户反馈 → Agent 修改 → 应用更新，单次迭代 <30s
+3. **后端可扩展**：`.mjs` endpoint 热加载，无需重启 Gateway
+4. **前端可扩展**：HtmlPreview 路径 <100ms 渲染，WebContainer 路径 <5s（预热后）
+5. **Agent 持续控制**：应用上线后 Agent 仍可推送更新、响应事件
+6. **可沉淀**：成功的应用可打包分发，其他 workspace 一键安装
 
 ---
 
