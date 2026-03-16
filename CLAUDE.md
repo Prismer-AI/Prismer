@@ -169,6 +169,47 @@ STATIC_AGENT_CONTAINER_ID=prismer-agent
 CONTAINER_GATEWAY_URL=http://localhost:16888
 ```
 
+## Skill Publishing Workflow
+
+When adding a new skill to `skills/`, follow this pipeline in order:
+
+### 1. Publish to ClaWHub
+
+```bash
+# Only publish SKILL.md — do NOT include index.ts or manifest.json (executable code triggers security flags)
+mkdir /tmp/<skill-name>-clawhub
+cp skills/<skill-name>/SKILL.md /tmp/<skill-name>-clawhub/
+clawhub publish /tmp/<skill-name>-clawhub --slug <skill-name> --name "<Display Name>" --version 1.0.0 --tags latest
+```
+
+- Verify the skill is **not flagged as suspicious** on ClaWHub
+- If flagged: check for HTTP requests, filesystem operations, or `process.env` in published files — these are red flags. Only publish `SKILL.md`.
+
+### 2. Wait for sync to openclaw/skills
+
+ClaWHub automatically syncs published skills to `github.com/openclaw/skills/tree/main/skills/<author>/<slug>/`. Verify the skill appears before proceeding.
+
+### 3. Submit to community lists
+
+Once the skill is live in `openclaw/skills`, submit PRs to both:
+
+**awesome-openclaw-skills** (`VoltAgent/awesome-openclaw-skills`):
+- Add entry to the matching category file in `categories/` (alphabetical order)
+- Format: `- [skill-name](https://github.com/openclaw/skills/tree/main/skills/<author>/<slug>/SKILL.md) - Short description (≤10 words).`
+- PR title: `Add skill: <author>/<skill-name>`
+- Include ClaWHub link + GitHub link in PR description
+
+**awesome-openclaw-usecases** (`hesamsheikh/awesome-openclaw-usecases`):
+- Create `usecases/<usecase-name>.md` covering: pain point, what it does, prompts, skills needed
+- Add row to relevant category table in `README.md`
+- PR title: descriptive, e.g. `Add use case: <Name>`
+
+### 4. Monitor PRs
+
+- Watch for CodeRabbit and maintainer review comments
+- Fix issues promptly (naming consistency, broken links, description length)
+- Ensure ClaWHub security status is clean — flagged skills will be rejected from awesome lists
+
 ## Commit Message Convention
 
 Conventional Commits: `type(scope): description`
