@@ -9,6 +9,17 @@
 
   "models": {
     "providers": {
+      "novita": {
+        "baseUrl": "https://api.novita.ai/openai",
+        "apiKey": "${NOVITA_API_KEY:-}",
+        "api": "openai-completions",
+        "models": [
+          {"id": "moonshotai/kimi-k2.5", "name": "Kimi K2.5"},
+          {"id": "deepseek/deepseek-v3.2", "name": "DeepSeek V3.2"},
+          {"id": "zai-org/glm-5", "name": "GLM-5"},
+          {"id": "qwen/qwen3-embedding-0.6b", "name": "Qwen3 Embedding 0.6B"}
+        ]
+      },
       "prismer-gateway": {
         "baseUrl": "http://34.60.178.0:3000/v1",
         "apiKey": "sk-placeholder",
