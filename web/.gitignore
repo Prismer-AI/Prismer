@@ -56,6 +56,7 @@ __pycache__/
 # Session data (dev only)
 data/sessions/*.json
 !data/sessions/.gitkeep
+data/assets/
 public/data/latex-output/
 
 /coverage

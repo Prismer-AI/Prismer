@@ -25,6 +25,8 @@ export interface AssetItem {
   type: 'paper' | 'note';
   title: string;
   description?: string;
+  metadata?: Record<string, unknown>;
+  fileUrl?: string;
   createdAt?: string;
 }
 
@@ -72,13 +74,27 @@ export function AssetBrowser({
         const json = await res.json();
         // API returns { success, data: { assets, total, ... } }
         const rawAssets = json.data?.assets || json.data || [];
-        const items: AssetItem[] = (Array.isArray(rawAssets) ? rawAssets : []).map((a: Record<string, unknown>) => ({
-          id: a.id as number,
-          type: (a.asset_type || a.type || 'paper') as 'paper' | 'note',
-          title: (a.title || 'Untitled') as string,
-          description: (a.abstract || a.description || '') as string,
-          createdAt: (a.created_at || a.createdAt) as string | undefined,
-        }));
+        const items: AssetItem[] = (Array.isArray(rawAssets) ? rawAssets : []).map((a: Record<string, unknown>) => {
+          const metadata = typeof a.metadata === 'string'
+            ? (() => {
+                try {
+                  return JSON.parse(a.metadata as string) as Record<string, unknown>;
+                } catch {
+                  return undefined;
+                }
+              })()
+            : a.metadata as Record<string, unknown> | undefined;
+
+          return {
+            id: a.id as number,
+            type: (a.asset_type || a.type || 'paper') as 'paper' | 'note',
+            title: (a.title || 'Untitled') as string,
+            description: (a.abstract || a.description || '') as string,
+            metadata,
+            fileUrl: (a.file_url || a.fileUrl) as string | undefined,
+            createdAt: (a.created_at || a.createdAt) as string | undefined,
+          };
+        });
         setAssets(items);
         setSelectedIndex(0);
       }
